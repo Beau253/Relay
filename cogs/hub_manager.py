@@ -163,6 +163,7 @@ class HubManagerCog(commands.Cog, name="Hub Manager"):
         self.usage = usage
         self.webhook_cache: Dict[int, discord.Webhook] = {}
         self.translate_channel_context_menu = app_commands.ContextMenu(name='Translate this Channel', callback=self.translate_channel_context)
+        self.bot.tree.add_command(self.translate_channel_context_menu)
         
         
         # Start all background tasks
