@@ -583,3 +583,5 @@ async def setup(bot: commands.Bot):
         log.critical("HubManagerCog cannot be loaded: Core services not found on bot object.")
         return
     await bot.add_cog(HubManagerCog(bot, bot.db_manager, bot.translator, bot.usage_manager))
+
+    bot.tree.add_command(translate_channel_context)
