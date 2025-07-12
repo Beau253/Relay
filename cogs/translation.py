@@ -79,7 +79,7 @@ class TranslationCog(commands.Cog, name="Translation"):
             await self.usage.record_usage(len(original_message_content))
         
         return translated_text
-####NEW START####
+
     @app_commands.command(name="set_language", description="Set your preferred language for translations.")
     @app_commands.autocomplete(language=language_autocomplete) # Uses the imported function
     @app_commands.describe(language="The language you want messages to be translated into for you.")
@@ -187,11 +187,12 @@ async def translate_message_context(interaction: discord.Interaction, message: d
 
 async def setup(bot: commands.Bot):
     """The setup function for the cog."""
-    # This is a bit of a workaround to pass dependencies to the cog.
-    # We assume our core services are initialized and attached to the bot object
-    # in the main runner file before cogs are loaded.
     if not all(hasattr(bot, attr) for attr in ['db_manager', 'translator', 'usage_manager']):
         log.critical("TranslationCog cannot be loaded: Core services not found on bot object.")
         return
-        
+    
+    # Add the cog to the bot first
     await bot.add_cog(TranslationCog(bot, bot.db_manager, bot.translator, bot.usage_manager))
+    
+    # Manually add the top-level context menu to the bot's tree
+    bot.tree.add_command(translate_message_context)
