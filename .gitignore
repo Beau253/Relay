@@ -21,6 +21,7 @@ build/
 # Environment
 .env
 Docs/
+credentials/
 
 # IDE / Editor specific
 .idea/
@@ -31,3 +32,4 @@ Docs/
 
 # Render specific
 .render
+
