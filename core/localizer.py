@@ -32,7 +32,7 @@ class BotLocalizer(Translator):
         
         # 1. Only translate if the command is a Context Menu. Ignore slash commands.
         if not isinstance(context.data, app_commands.ContextMenu):
-        return None
+            return None
 
         # 2. Now proceed with the original logic, knowing it's a context menu.
         key = f"ContextMenu-name-{string.message}"
@@ -41,7 +41,7 @@ class BotLocalizer(Translator):
     
         # Check for full locale (e.g., 'en-US')
         if locale_str_val in self.translations and key in self.translations[locale_str_val]:
-        return self.translations[locale_str_val].get(key)
+            return self.translations[locale_str_val].get(key)
 
         # Fallback to base language (e.g., 'en' for 'en-US')
         base_lang = str(locale).split('-')[0]
