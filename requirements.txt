@@ -1,20 +1,20 @@
 # requirements.txt
 
 # Core Discord library
-discord.py==2.5.2
+discord.py
 
 # Google Cloud APIs for translation and monitoring
-google-api-python-client==2.108.0
-google-auth-oauthlib==1.1.0
-google-cloud-translate==3.12.1
-google-cloud-monitoring==2.18.0
+google-api-python-client
+google-auth-oauthlib
+google-cloud-translate
+google-cloud-monitoring
 
 # For loading environment variables from .env file
-python-dotenv==1.0.0
+python-dotenv
 
 # Web framework for the keep-alive service
-Flask==3.0.0
+Flask
 
 # Neon PostgresSQL
-asyncpg==0.29.0
+asyncpg
 
