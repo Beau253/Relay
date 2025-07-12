@@ -1,7 +1,7 @@
 # requirements.txt
 
 # Core Discord library
-discord.py
+discord.py==2.5.2
 
 # Google Cloud APIs for translation and monitoring
 google-api-python-client==2.108.0

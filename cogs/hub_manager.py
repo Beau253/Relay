@@ -537,48 +537,48 @@ class HubManagerCog(commands.Cog, name="Hub Manager"):
             log.info(f"No content to forward from hub {message.channel.id} to main channel.")
 
         # --- Relay to other associated hubs ---
-        all_hubs_for_source = await self.db.get_hubs_by_source_channel(source_channel_id)
-        for other_hub_record in all_hubs_for_source:
-            if other_hub_record['thread_id'] == message.channel.id:
-                continue
-
-            other_thread = self.bot.get_channel(other_hub_record['thread_id'])
-            if not other_thread or not isinstance(other_thread, discord.Thread):
-                continue
-
-            target_lang_code = other_hub_record['language_code']
-            log.info(f"Relaying message from hub {message.channel.id} to other hub {other_hub_record['thread_id']} (target: {target_lang_code})")
-
-            to_other_hub_text = ""
-            if text_to_translate:
-                if not self.usage.check_limit_exceeded(len(text_to_translate)):
-                    translation_result = await self.translator.translate_text(text_to_translate, target_lang_code, source_language=origin_lang_code)
-                    if translation_result:
-                        await self.usage.record_usage(len(text_to_translate))
-                        to_other_hub_text = translation_result
-                    else:
-                        log.error(f"Translation to other hub {other_hub_record['thread_id']} failed for '{text_to_translate}'.")
-                        to_other_hub_text = f"[Translation Failed] {text_to_translate}"
-                else:
-                    log.warning(f"Translation to other hub {other_hub_record['thread_id']} skipped from hub {message.channel.id}: API usage limit reached.")
-                    to_other_hub_text = f"[Translation Skipped] {text_to_translate}"
-
-            final_content_to_other_hub_parts = []
-            if to_other_hub_text:
-                final_content_to_other_hub_parts.append(f"{origin_flag_emoji} {to_other_hub_text}")
-            if attachment_links_str:
-                if not to_other_hub_text:
-                    final_content_to_other_hub_parts.append(f"{origin_flag_emoji}")
-                final_content_to_other_hub_parts.append(attachment_links_str)
-            
-            final_content_to_other_hub = "\n".join(final_content_to_other_hub_parts)
-            
-            if final_content_to_other_hub:
-                await self._send_webhook_message(other_thread, final_content_to_other_hub, message.author)
-            else:
-                log.info(f"No content to forward from hub {message.channel.id} to other hub {other_hub_record['thread_id']}.")
-
-        # --- Relay to other associated hubs (target: other_hub_record['language_code']) ---
+#        all_hubs_for_source = await self.db.get_hubs_by_source_channel(source_channel_id)
+#        for other_hub_record in all_hubs_for_source:
+#            if other_hub_record['thread_id'] == message.channel.id:
+#                continue
+#
+#            other_thread = self.bot.get_channel(other_hub_record['thread_id'])
+#            if not other_thread or not isinstance(other_thread, discord.Thread):
+#                continue
+#
+#            target_lang_code = other_hub_record['language_code']
+#            log.info(f"Relaying message from hub {message.channel.id} to other hub {other_hub_record['thread_id']} (target: {target_lang_code})")
+#
+#            to_other_hub_text = ""
+#            if text_to_translate:
+#                if not self.usage.check_limit_exceeded(len(text_to_translate)):
+#                    translation_result = await self.translator.translate_text(text_to_translate, target_lang_code, source_language=origin_lang_code)
+#                    if translation_result:
+#                        await self.usage.record_usage(len(text_to_translate))
+#                        to_other_hub_text = translation_result
+#                    else:
+#                        log.error(f"Translation to other hub {other_hub_record['thread_id']} failed for '{text_to_translate}'.")
+#                        to_other_hub_text = f"[Translation Failed] {text_to_translate}"
+#                else:
+#                    log.warning(f"Translation to other hub {other_hub_record['thread_id']} skipped from hub {message.channel.id}: API usage limit reached.")
+#                    to_other_hub_text = f"[Translation Skipped] {text_to_translate}"
+#
+#            final_content_to_other_hub_parts = []
+#            if to_other_hub_text:
+#                final_content_to_other_hub_parts.append(f"{origin_flag_emoji} {to_other_hub_text}")
+#            if attachment_links_str:
+#                if not to_other_hub_text:
+#                    final_content_to_other_hub_parts.append(f"{origin_flag_emoji}")
+#                final_content_to_other_hub_parts.append(attachment_links_str)
+#            
+#            final_content_to_other_hub = "\n".join(final_content_to_other_hub_parts)
+#            
+#            if final_content_to_other_hub:
+#                await self._send_webhook_message(other_thread, final_content_to_other_hub, message.author)
+#            else:
+#                log.info(f"No content to forward from hub {message.channel.id} to other hub {other_hub_record['thread_id']}.")
+#
+#        # --- Relay to other associated hubs (target: other_hub_record['language_code']) ---
         all_hubs_for_source = await self.db.get_hubs_by_source_channel(source_channel_id)
         for other_hub_record in all_hubs_for_source:
             other_thread_id = other_hub_record['thread_id']
