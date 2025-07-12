@@ -92,27 +92,28 @@ async def run_bot():
         log.info(f"Version: {BOT_VERSION} | Mode: {BOT_MODE}")
         log.info("--------------------------------------------------")
         
+        # THIS IS THE FINAL, CORRECTED CODE FOR OLDER DISCORD.PY VERSIONS
         guild_ids_str = os.getenv("GUILD_IDS")
         if guild_ids_str:
             # Parse the environment variable into a list of integers
             guild_ids = [int(gid.strip()) for gid in guild_ids_str.split(',') if gid.strip().isdigit()]
-    
+            
             if guild_ids:
                 log.info(f"Syncing commands to {len(guild_ids)} specified guilds...")
-                # Create a list of discord.Object for each guild ID
-                guild_objects = [discord.Object(id=gid) for gid in guild_ids]
-        
-                # Sync the application command tree to the specified guilds.
-                # This is the correct way to do a guild-specific sync.
-                # It does not copy commands; it just tells Discord where to register them.
-                await bot.tree.sync(guilds=guild_objects)
-        
-                log.info(f"Successfully synced commands to guilds: {guild_ids}")
+                for guild_id in guild_ids:
+                    try:
+                        guild = discord.Object(id=guild_id)
+                        # Sync the global command tree to this specific guild.
+                        # This does NOT copy them, it just registers them here.
+                        await bot.tree.sync(guild=guild)
+                        log.info(f"Commands successfully synced to Guild ID: {guild_id}")
+                    except Exception as e:
+                        log.error(f"Failed to sync commands to Guild ID {guild_id}: {e}")
             else:
                 log.warning("GUILD_IDS was set, but no valid IDs were found. Performing global sync.")
                 await bot.tree.sync() # Fallback to global sync
         else:
-                # If GUILD_IDS is not set at all, perform a global sync.
+            # If GUILD_IDS is not set at all, perform a global sync.
             log.warning("GUILD_IDS environment variable not set. Performing global command sync (may take up to an hour).")
             await bot.tree.sync()
 
