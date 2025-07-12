@@ -1,0 +1,13 @@
+{
+  "ContextMenu-name-Translate Message": "Przetłumacz wiadomość",
+  "ContextMenu-name-Translate this Channel": "Przetłumacz ten kanał",
+  "HubUI-ExtendPlaceholder": "Wybierz czas przedłużenia...",
+  "HubUI-ExtendButton": "Przedłuż sesję",
+  "HubUI-Duration5m": "5 minut",
+  "HubUI-Duration15m": "15 minut",
+  "HubUI-Duration30m": "30 minut",
+  "HubUI-Duration1h": "1 godzina",
+  "HubUI-ErrorSelectFirst": "Najpierw wybierz czas trwania z listy rozwijanej.",
+  "HubUI-ErrorExpired": "Nie można było przedłużyć tej sesji. Mogła już wygasnąć.",
+  "HubUI-ConfirmExtended": "✅ Ta sesja została przedłużona. Wygasa teraz o {expiry_time}."
+}

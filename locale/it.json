@@ -1,0 +1,13 @@
+{
+  "ContextMenu-name-Translate Message": "Traduci messaggio",
+  "ContextMenu-name-Translate this Channel": "Traduci questo canale",
+  "HubUI-ExtendPlaceholder": "Scegli la durata dell'estensione...",
+  "HubUI-ExtendButton": "Estendi sessione",
+  "HubUI-Duration5m": "5 minuti",
+  "HubUI-Duration15m": "15 minuti",
+  "HubUI-Duration30m": "30 minuti",
+  "HubUI-Duration1h": "1 ora",
+  "HubUI-ErrorSelectFirst": "Seleziona prima una durata dal menu a tendina.",
+  "HubUI-ErrorExpired": "Impossibile estendere questa sessione. Potrebbe essere già scaduta.",
+  "HubUI-ConfirmExtended": "✅ Questa sessione è stata estesa. Scadrà il {expiry_time}."
+}

@@ -1,0 +1,13 @@
+{
+  "ContextMenu-name-Translate Message": "Dịch tin nhắn",
+  "ContextMenu-name-Translate this Channel": "Dịch kênh này",
+  "HubUI-ExtendPlaceholder": "Chọn thời gian gia hạn...",
+  "HubUI-ExtendButton": "Gia hạn phiên",
+  "HubUI-Duration5m": "5 phút",
+  "HubUI-Duration15m": "15 phút",
+  "HubUI-Duration30m": "30 phút",
+  "HubUI-Duration1h": "1 giờ",
+  "HubUI-ErrorSelectFirst": "Vui lòng chọn thời gian từ menu thả xuống trước.",
+  "HubUI-ErrorExpired": "Không thể gia hạn phiên này. Có thể nó đã hết hạn.",
+  "HubUI-ConfirmExtended": "✅ Phiên này đã được gia hạn. Bây giờ nó sẽ hết hạn vào {expiry_time}."
+}

@@ -1,0 +1,13 @@
+{
+"ContextMenu-name-Translate Message": "Nachricht übersetzen",
+"ContextMenu-name-Translate this Channel": "Diesen Kanal übersetzen",
+"HubUI-ExtendPlaceholder": "Verlängerungsdauer auswählen...",
+"HubUI-ExtendButton": "Sitzung verlängern",
+"HubUI-Duration5m": "5 Minuten",
+"HubUI-Duration15m": "15 Minuten",
+"HubUI-Duration30m": "30 Minuten",
+"HubUI-Duration1h": "1 Stunde",
+"HubUI-ErrorSelectFirst": "Bitte wählen Sie zuerst eine Dauer aus dem Dropdown-Menü aus.",
+"HubUI-ErrorExpired": "Diese Sitzung konnte nicht verlängert werden. Sie ist möglicherweise bereits abgelaufen.",
+"HubUI-ConfirmExtended": "✅ Diese Sitzung wurde verlängert. Sie läuft jetzt am {expiry_time} ab."
+}

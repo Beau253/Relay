@@ -1,0 +1,13 @@
+{
+  "ContextMenu-name-Translate Message": "संदेश का अनुवाद करें",
+  "ContextMenu-name-Translate this Channel": "इस चैनल का अनुवाद करें",
+  "HubUI-ExtendPlaceholder": "विस्तार की अवधि चुनें...",
+  "HubUI-ExtendButton": "सत्र बढ़ाएँ",
+  "HubUI-Duration5m": "5 मिनट",
+  "HubUI-Duration15m": "15 मिनट",
+  "HubUI-Duration30m": "30 मिनट",
+  "HubUI-Duration1h": "1 घंटा",
+  "HubUI-ErrorSelectFirst": "कृपया पहले ड्रॉपडाउन से एक अवधि चुनें।",
+  "HubUI-ErrorExpired": "यह सत्र नहीं बढ़ाया जा सका। यह शायद पहले ही समाप्त हो चुका है।",
+  "HubUI-ConfirmExtended": "✅ यह सत्र बढ़ा दिया गया है। यह अब {expiry_time} पर समाप्त होगा।"
+}

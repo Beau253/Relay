@@ -1,0 +1,13 @@
+{
+  "ContextMenu-name-Translate Message": "메시지 번역",
+  "ContextMenu-name-Translate this Channel": "이 채널 번역",
+  "HubUI-ExtendPlaceholder": "연장 기간 선택...",
+  "HubUI-ExtendButton": "세션 연장",
+  "HubUI-Duration5m": "5분",
+  "HubUI-Duration15m": "15분",
+  "HubUI-Duration30m": "30분",
+  "HubUI-Duration1h": "1시간",
+  "HubUI-ErrorSelectFirst": "먼저 드롭다운에서 기간을 선택하십시오.",
+  "HubUI-ErrorExpired": "이 세션을 연장할 수 없습니다. 이미 만료되었을 수 있습니다.",
+  "HubUI-ConfirmExtended": "✅ 이 세션이 연장되었습니다. 이제 {expiry_time}에 만료됩니다."
+}

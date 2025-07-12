@@ -1,0 +1,13 @@
+{
+  "ContextMenu-name-Translate Message": "ترجمة الرسالة",
+  "ContextMenu-name-Translate this Channel": "ترجمة هذه القناة",
+  "HubUI-ExtendPlaceholder": "اختر مدة التمديد...",
+  "HubUI-ExtendButton": "تمديد الجلسة",
+  "HubUI-Duration5m": "5 دقائق",
+  "HubUI-Duration15m": "15 دقيقة",
+  "HubUI-Duration30m": "30 دقيقة",
+  "HubUI-Duration1h": "ساعة واحدة",
+  "HubUI-ErrorSelectFirst": "يرجى تحديد مدة من القائمة المنسدلة أولاً.",
+  "HubUI-ErrorExpired": "تعذر تمديد هذه الجلسة. ربما انتهت صلاحيتها بالفعل.",
+  "HubUI-ConfirmExtended": "✅ تم تمديد هذه الجلسة. ستنتهي صلاحيتها الآن في {expiry_time}."
+}

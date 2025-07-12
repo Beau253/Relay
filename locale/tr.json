@@ -1,0 +1,13 @@
+{
+  "ContextMenu-name-Translate Message": "Mesajı Çevir",
+  "ContextMenu-name-Translate this Channel": "Bu Kanalı Çevir",
+  "HubUI-ExtendPlaceholder": "Uzatma süresini seçin...",
+  "HubUI-ExtendButton": "Oturumu Uzat",
+  "HubUI-Duration5m": "5 Dakika",
+  "HubUI-Duration15m": "15 Dakika",
+  "HubUI-Duration30m": "30 Dakika",
+  "HubUI-Duration1h": "1 Saat",
+  "HubUI-ErrorSelectFirst": "Lütfen önce açılır menüden bir süre seçin.",
+  "HubUI-ErrorExpired": "Bu oturum uzatılamadı. Zaten süresi dolmuş olabilir.",
+  "HubUI-ConfirmExtended": "✅ Bu oturum uzatıldı. Şimdi {expiry_time} tarihinde sona erecek."
+}

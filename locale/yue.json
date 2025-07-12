@@ -1,0 +1,13 @@
+{
+  "ContextMenu-name-Translate Message": "翻譯訊息",
+  "ContextMenu-name-Translate this Channel": "翻譯呢個頻道",
+  "HubUI-ExtendPlaceholder": "揀延長幾耐...",
+  "HubUI-ExtendButton": "延長時段",
+  "HubUI-Duration5m": "5分鐘",
+  "HubUI-Duration15m": "15分鐘",
+  "HubUI-Duration30m": "30分鐘",
+  "HubUI-Duration1h": "1個鐘",
+  "HubUI-ErrorSelectFirst": "請先喺下拉選單度揀個時間。",
+  "HubUI-ErrorExpired": "延長唔到呢個時段，可能已經過咗期。",
+  "HubUI-ConfirmExtended": "✅ 呢個時段已經延長咗，而家會喺 {expiry_time} 到期。"
+}

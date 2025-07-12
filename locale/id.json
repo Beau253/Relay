@@ -1,0 +1,13 @@
+{
+  "ContextMenu-name-Translate Message": "Terjemahkan Pesan",
+  "ContextMenu-name-Translate this Channel": "Terjemahkan Saluran Ini",
+  "HubUI-ExtendPlaceholder": "Pilih durasi perpanjangan...",
+  "HubUI-ExtendButton": "Perpanjang Sesi",
+  "HubUI-Duration5m": "5 Menit",
+  "HubUI-Duration15m": "15 Menit",
+  "HubUI-Duration30m": "30 Menit",
+  "HubUI-Duration1h": "1 Jam",
+  "HubUI-ErrorSelectFirst": "Silakan pilih durasi dari dropdown terlebih dahulu.",
+  "HubUI-ErrorExpired": "Tidak dapat memperpanjang sesi ini. Mungkin sudah kedaluwarsa.",
+  "HubUI-ConfirmExtended": "✅ Sesi ini telah diperpanjang. Sekarang akan berakhir pada {expiry_time}."
+}

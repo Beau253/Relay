@@ -1,0 +1,13 @@
+{
+  "ContextMenu-name-Translate Message": "Käännä viesti",
+  "ContextMenu-name-Translate this Channel": "Käännä tämä kanava",
+  "HubUI-ExtendPlaceholder": "Valitse jatkoaika...",
+  "HubUI-ExtendButton": "Jatka istuntoa",
+  "HubUI-Duration5m": "5 minuuttia",
+  "HubUI-Duration15m": "15 minuuttia",
+  "HubUI-Duration30m": "30 minuuttia",
+  "HubUI-Duration1h": "1 tunti",
+  "HubUI-ErrorSelectFirst": "Valitse ensin kesto pudotusvalikosta.",
+  "HubUI-ErrorExpired": "Istuntoa ei voitu jatkaa. Se on saattanut jo päättyä.",
+  "HubUI-ConfirmExtended": "✅ Tätä istuntoa on jatkettu. Se päättyy nyt {expiry_time}."
+}

@@ -1,0 +1,13 @@
+{
+  "ContextMenu-name-Translate Message": "メッセージを翻訳",
+  "ContextMenu-name-Translate this Channel": "このチャンネルを翻訳",
+  "HubUI-ExtendPlaceholder": "延長時間を選択...",
+  "HubUI-ExtendButton": "セッションを延長",
+  "HubUI-Duration5m": "5分",
+  "HubUI-Duration15m": "15分",
+  "HubUI-Duration30m": "30分",
+  "HubUI-Duration1h": "1時間",
+  "HubUI-ErrorSelectFirst": "最初にドロップダウンから期間を選択してください。",
+  "HubUI-ErrorExpired": "このセッションを延長できませんでした。すでに期限切れの可能性があります。",
+  "HubUI-ConfirmExtended": "✅ このセッションは延長されました。新しい有効期限は{expiry_time}です。"
+}

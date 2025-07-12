@@ -1,0 +1,13 @@
+{
+  "ContextMenu-name-Translate Message": "Vertaal Bericht",
+  "ContextMenu-name-Translate this Channel": "Vertaal dit Kanaal",
+  "HubUI-ExtendPlaceholder": "Kies verlengingsduur...",
+  "HubUI-ExtendButton": "Sessie Verlengen",
+  "HubUI-Duration5m": "5 Minuten",
+  "HubUI-Duration15m": "15 Minuten",
+  "HubUI-Duration30m": "30 Minuten",
+  "HubUI-Duration1h": "1 Uur",
+  "HubUI-ErrorSelectFirst": "Selecteer eerst een duur uit het dropdown-menu.",
+  "HubUI-ErrorExpired": "Kon deze sessie niet verlengen. Mogelijk is deze al verlopen.",
+  "HubUI-ConfirmExtended": "✅ Deze sessie is verlengd. Hij verloopt nu op {expiry_time}."
+}

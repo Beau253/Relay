@@ -1,0 +1,13 @@
+{
+  "ContextMenu-name-Translate Message": "翻譯訊息",
+  "ContextMenu-name-Translate this Channel": "翻譯此頻道",
+  "HubUI-ExtendPlaceholder": "選擇延長時間...",
+  "HubUI-ExtendButton": "延長會話",
+  "HubUI-Duration5m": "5分鐘",
+  "HubUI-Duration15m": "15分鐘",
+  "HubUI-Duration30m": "30分鐘",
+  "HubUI-Duration1h": "1小時",
+  "HubUI-ErrorSelectFirst": "請先從下拉選單中選擇一個持續時間。",
+  "HubUI-ErrorExpired": "無法延長此會話。它可能已經過期。",
+  "HubUI-ConfirmExtended": "✅ 此會話已延長。現在將於 {expiry_time} 到期。"
+}

@@ -1,0 +1,13 @@
+{
+  "ContextMenu-name-Translate Message": "Översätt meddelande",
+  "ContextMenu-name-Translate this Channel": "Översätt den här kanalen",
+  "HubUI-ExtendPlaceholder": "Välj förlängningstid...",
+  "HubUI-ExtendButton": "Förläng sessionen",
+  "HubUI-Duration5m": "5 minuter",
+  "HubUI-Duration15m": "15 minuter",
+  "HubUI-Duration30m": "30 minuter",
+  "HubUI-Duration1h": "1 timme",
+  "HubUI-ErrorSelectFirst": "Vänligen välj en varaktighet från rullgardinsmenyn först.",
+  "HubUI-ErrorExpired": "Kunde inte förlänga den här sessionen. Den kan redan ha gått ut.",
+  "HubUI-ConfirmExtended": "✅ Denna session har förlängts. Den löper nu ut {expiry_time}."
+}

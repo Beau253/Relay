@@ -1,0 +1,13 @@
+{
+  "ContextMenu-name-Translate Message": "پیغام کا ترجمہ کریں",
+  "ContextMenu-name-Translate this Channel": "اس چینل کا ترجمہ کریں",
+  "HubUI-ExtendPlaceholder": "توسیع کی مدت کا انتخاب کریں...",
+  "HubUI-ExtendButton": "سیشن میں توسیع کریں",
+  "HubUI-Duration5m": "5 منٹ",
+  "HubUI-Duration15m": "15 منٹ",
+  "HubUI-Duration30m": "30 منٹ",
+  "HubUI-Duration1h": "1 گھنٹہ",
+  "HubUI-ErrorSelectFirst": "براہ کرم پہلے ڈراپ ڈاؤن سے مدت منتخب کریں۔",
+  "HubUI-ErrorExpired": "اس سیشن میں توسیع نہیں کی جا سکی۔ ہو سکتا ہے اس کی میعاد ختم ہو چکی ہو۔",
+  "HubUI-ConfirmExtended": "✅ اس سیشن میں توسیع کر دی گئی ہے۔ اب یہ {expiry_time} پر ختم ہوگا۔"
+}

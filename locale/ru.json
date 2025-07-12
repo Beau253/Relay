@@ -1,0 +1,13 @@
+{
+  "ContextMenu-name-Translate Message": "Перевести сообщение",
+  "ContextMenu-name-Translate this Channel": "Перевести этот канал",
+  "HubUI-ExtendPlaceholder": "Выберите длительность продления...",
+  "HubUI-ExtendButton": "Продлить сессию",
+  "HubUI-Duration5m": "5 минут",
+  "HubUI-Duration15m": "15 минут",
+  "HubUI-Duration30m": "30 минут",
+  "HubUI-Duration1h": "1 час",
+  "HubUI-ErrorSelectFirst": "Пожалуйста, сначала выберите длительность в выпадающем меню.",
+  "HubUI-ErrorExpired": "Не удалось продлить эту сессию. Возможно, она уже истекла.",
+  "HubUI-ConfirmExtended": "✅ Эта сессия была продлена. Теперь она истекает {expiry_time}."
+}

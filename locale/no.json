@@ -1,0 +1,13 @@
+{
+  "ContextMenu-name-Translate Message": "Oversett melding",
+  "ContextMenu-name-Translate this Channel": "Oversett denne kanalen",
+  "HubUI-ExtendPlaceholder": "Velg forlengelsens varighet...",
+  "HubUI-ExtendButton": "Forleng økten",
+  "HubUI-Duration5m": "5 minutter",
+  "HubUI-Duration15m": "15 minutter",
+  "HubUI-Duration30m": "30 minutter",
+  "HubUI-Duration1h": "1 time",
+  "HubUI-ErrorSelectFirst": "Vennligst velg en varighet fra nedtrekksmenyen først.",
+  "HubUI-ErrorExpired": "Kunne ikke forlenge denne økten. Den kan allerede ha utløpt.",
+  "HubUI-ConfirmExtended": "✅ Denne økten er blitt forlenget. Den utløper nå {expiry_time}."
+}
