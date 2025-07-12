@@ -92,7 +92,17 @@ async def run_bot():
         log.info(f"Version: {BOT_VERSION} | Mode: {BOT_MODE}")
         log.info("--------------------------------------------------")
         
-        # THIS IS THE FINAL, CORRECTED CODE FOR OLDER DISCORD.PY VERSIONS
+        # --- DIAGNOSTIC LOGGING: INSPECT COMMAND TREE BEFORE SYNC ---
+        log.info("INSPECTING COMMAND TREE...")
+        all_commands = bot.tree.get_commands()
+        if not all_commands:
+            log.warning("!!! Command tree is EMPTY before sync.")
+        else:
+            for command in all_commands:
+                log.info(f"  -> Found command: '{command.name}' (Type: {command.type})")
+        log.info("INSPECTION COMPLETE.")
+        # --- END DIAGNOSTIC LOGGING ---
+        
         guild_ids_str = os.getenv("GUILD_IDS")
         if guild_ids_str:
             # Parse the environment variable into a list of integers

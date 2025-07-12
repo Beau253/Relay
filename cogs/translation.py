@@ -193,6 +193,6 @@ async def setup(bot: commands.Bot):
     
     # Add the cog to the bot first
     await bot.add_cog(TranslationCog(bot, bot.db_manager, bot.translator, bot.usage_manager))
-    
+    log.info("TRANSLATION_COG: Attempting to add 'translate_message_context' to the command tree.")
     # Manually add the top-level context menu to the bot's tree
     bot.tree.add_command(translate_message_context)
