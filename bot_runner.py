@@ -99,7 +99,7 @@ async def run_bot():
             log.warning("!!! Command tree is EMPTY before sync.")
         else:
             for command in all_commands:
-                log.info(f"  -> Found command: '{command.name}' (Type: {command.type})")
+                log.info(f"  -> Found command: '{command.name}' (Type: {type(command).__name__})")
         log.info("INSPECTION COMPLETE.")
         # --- END DIAGNOSTIC LOGGING ---
         
@@ -144,6 +144,13 @@ async def run_bot():
                 log.info(f" -> Successfully loaded cog: {filename}")
             except Exception as e:
                 log.error(f" -> Failed to load cog: {filename}", exc_info=e)
+
+    from cogs.translation import translate_message_context
+    from cogs.hub_manager import translate_channel_context
+
+    bot.tree.add_command(translate_message_context)
+    bot.tree.add_command(translate_channel_context)
+    log.info("Manually registered top-level context menus.")
     
     # --- Run the Bot with Graceful Shutdown ---
     try:
