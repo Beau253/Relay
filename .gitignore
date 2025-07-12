@@ -21,7 +21,7 @@ build/
 # Environment
 .env
 Docs/
-credentials/
+creds/
 
 # IDE / Editor specific
 .idea/
