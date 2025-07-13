@@ -91,42 +91,21 @@ async def run_bot():
         log.info(f"Logged in as {bot.user} (ID: {bot.user.id})")
         log.info(f"Version: {BOT_VERSION} | Mode: {BOT_MODE}")
         log.info("--------------------------------------------------")
-        
-        # --- DIAGNOSTIC LOGGING: INSPECT COMMAND TREE BEFORE SYNC ---
-        log.info("INSPECTING COMMAND TREE...")
-        all_commands = bot.tree.get_commands()
-        if not all_commands:
-            log.warning("!!! Command tree is EMPTY before sync.")
-        else:
-            for command in all_commands:
-                log.info(f"  -> Found command: '{command.name}' (Type: {type(command).__name__})")
-        log.info("INSPECTION COMPLETE.")
-        # --- END DIAGNOSTIC LOGGING ---
-        
+    
+        # With the updated discord.py, we can use the cleaner sync method.
         guild_ids_str = os.getenv("GUILD_IDS")
         if guild_ids_str:
-            # Parse the environment variable into a list of integers
             guild_ids = [int(gid.strip()) for gid in guild_ids_str.split(',') if gid.strip().isdigit()]
-            
             if guild_ids:
-                log.info(f"Syncing commands to {len(guild_ids)} specified guilds...")
-                for guild_id in guild_ids:
-                    try:
-                        guild = discord.Object(id=guild_id)
-                        # Sync the global command tree to this specific guild.
-                        # This does NOT copy them, it just registers them here.
-                        await bot.tree.sync(guild=guild)
-                        log.info(f"Commands successfully synced to Guild ID: {guild_id}")
-                    except Exception as e:
-                        log.error(f"Failed to sync commands to Guild ID {guild_id}: {e}")
+                guild_objects = [discord.Object(id=gid) for gid in guild_ids]
+                # This single call syncs all automatically-discovered commands to our test guilds.
+                await bot.tree.sync(guilds=guild_objects)
+                log.info(f"Successfully synced commands to guilds: {guild_ids}")
             else:
-                log.warning("GUILD_IDS was set, but no valid IDs were found. Performing global sync.")
-                await bot.tree.sync() # Fallback to global sync
+                await bot.tree.sync()
         else:
-            # If GUILD_IDS is not set at all, perform a global sync.
-            log.warning("GUILD_IDS environment variable not set. Performing global command sync (may take up to an hour).")
             await bot.tree.sync()
-
+    
         log.info("==================================================")
         log.info(">>> Bot startup complete. Relay is now online! <<<")
         log.info("==================================================")
@@ -144,13 +123,6 @@ async def run_bot():
                 log.info(f" -> Successfully loaded cog: {filename}")
             except Exception as e:
                 log.error(f" -> Failed to load cog: {filename}", exc_info=e)
-
-    from cogs.translation import translate_message_context
-    from cogs.hub_manager import translate_channel_context
-
-    bot.tree.add_command(translate_message_context)
-    bot.tree.add_command(translate_channel_context)
-    log.info("Manually registered top-level context menus.")
     
     # --- Run the Bot with Graceful Shutdown ---
     try:

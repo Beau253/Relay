@@ -54,44 +54,6 @@ class TranslationCog(commands.Cog, name="Translation"):
         self.usage = usage_manager
         
 
-        @app_commands.context_menu(name='Translate Message')
-    async def translate_message_context(self, interaction: discord.Interaction, message: discord.Message):
-        """Right-click context menu command to translate a message privately."""
-        # Note: We use `self` now to access the database and helper methods.
-        
-        await interaction.response.defer(ephemeral=True)
-
-        if not message.content:
-            await interaction.followup.send("This message has no text to translate.")
-            return
-
-        # Use self.db, which was set in __init__
-        target_language = await self.db.get_user_preferences(interaction.user.id)
-        
-        if not target_language:
-            await interaction.followup.send("I don't know your preferred language yet! Please use /set_language to set it up.", ephemeral=True)
-            return
-
-        log.info(f"Context menu translation triggered by {interaction.user.name} for language '{target_language}'.")
-        
-        # Use the cog's own helper method via `self`
-        translated_text = await self.perform_translation(message.content, target_language)
-
-        if translated_text and ("unavailable" in translated_text or "limit has been reached" in translated_text):
-            await interaction.followup.send(translated_text)
-        elif translated_text:
-            embed = discord.Embed(
-                title="Translation Result",
-                description=translated_text,
-                color=discord.Color.blue()
-            )
-            embed.set_footer(text=f"Original message by {message.author.display_name}")
-            await interaction.followup.send(embed=embed)
-        else:
-            await interaction.followup.send("An error occurred during translation. Please try again.", ephemeral=True)
-        
-        self.translating_messages = set()
-
     async def perform_translation(self, original_message_content: str, target_lang: str) -> str | None:
         """
         A helper function to centralize translation logic and usage checking.
@@ -170,52 +132,41 @@ class TranslationCog(commands.Cog, name="Translation"):
             if translated_text:
                 await message.reply(content=translated_text, mention_author=False)
 
-# --- Context Menu Definition (must be outside the class for app_commands.context_menu decorator) ---
-#@app_commands.context_menu(name='Translate Message') # The name here should match your locale key if translated
-#async def translate_message_context(interaction: discord.Interaction, message: discord.Message):
-#    """Right-click context menu command to translate a message privately."""
-#    
-#    
-#    translation_cog = interaction.client.get_cog("Translation")
-#    db_manager = interaction.client.db_manager
-#
-#    if not translation_cog or not db_manager:
-#        log.error("TranslationCog or DatabaseManager not found on bot object during context menu call.")
-#        await interaction.response.send_message("The translation service is currently unavailable.", ephemeral=True)
-#        return
-#
-#    await interaction.response.defer(ephemeral=True)
-#
-#    if not message.content:
-#        await interaction.followup.send("This message has no text to translate.")
-#        return
-#
-#    # Get user's preferred language from the database
-#    target_language = await db_manager.get_user_preferences(interaction.user.id)
-#    
-#    if not target_language:
-#        await interaction.followup.send("I don't know your preferred language yet! Please visit the **#set-language** channel to set it up.", ephemeral=True)
-#        return
-#
-#    log.info(f"Context menu translation triggered by {interaction.user.name} for language '{target_language}'.")
-#    
-#    # Use the centralized helper method from the cog to avoid duplicating logic.
-#    translated_text = await translation_cog.perform_translation(message.content, target_language)
-#
-#    # The helper returns user-facing error messages, so we can just send them.
-#    if translated_text and ("unavailable" in translated_text or "limit has been reached" in translated_text):
-#        await interaction.followup.send(translated_text)
-#    elif translated_text:
-#        embed = discord.Embed(
-#            title="Translation Result",
-#            description=translated_text,
-#            color=discord.Color.blue()
-#        )
-#        embed.set_footer(text=f"Original message by {message.author.display_name}")
-#        await interaction.followup.send(embed=embed)
-#    else:
-#        # Fallback for generic translation failure (e.g., Google API returned empty)
-#        await interaction.followup.send("An error occurred during translation. Please try again.", ephemeral=True)
+@app_commands.context_menu(name='Translate Message')
+async def translate_message_context(interaction: discord.Interaction, message: discord.Message):
+    """Right-click context menu command to translate a message privately."""
+    # We must get the cog to access its methods
+    translation_cog = interaction.client.get_cog("Translation")
+    if not translation_cog:
+        log.error("TranslationCog not found during context menu call.")
+        await interaction.response.send_message("The translation service is currently unavailable.", ephemeral=True)
+        return
+
+    await interaction.response.defer(ephemeral=True)
+
+    if not message.content:
+        await interaction.followup.send("This message has no text to translate.")
+        return
+
+    # Use the cog's database connection
+    target_language = await translation_cog.db.get_user_preferences(interaction.user.id)
+    if not target_language:
+        await interaction.followup.send("I don't know your preferred language yet! Please use /set_language to set it up.", ephemeral=True)
+        return
+
+    log.info(f"Context menu translation triggered by {interaction.user.name} for language '{target_language}'.")
+    
+    # Use the cog's helper method
+    translated_text = await translation_cog.perform_translation(message.content, target_language)
+
+    if translated_text and ("unavailable" in translated_text or "limit has been reached" in translated_text):
+        await interaction.followup.send(translated_text)
+    elif translated_text:
+        embed = discord.Embed(title="Translation Result", description=translated_text, color=discord.Color.blue())
+        embed.set_footer(text=f"Original message by {message.author.display_name}")
+        await interaction.followup.send(embed=embed)
+    else:
+        await interaction.followup.send("An error occurred during translation. Please try again.", ephemeral=True)
 
 async def setup(bot: commands.Bot):
     """The setup function for the cog."""
