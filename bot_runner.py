@@ -87,17 +87,24 @@ async def run_bot():
         log.info(f"Version: {BOT_VERSION} | Mode: {BOT_MODE}")
         log.info("--------------------------------------------------")
     
+        # This is the older, looping sync method that is compatible with your library
         guild_ids_str = os.getenv("GUILD_IDS")
         if guild_ids_str:
             guild_ids = [int(gid.strip()) for gid in guild_ids_str.split(',') if gid.strip().isdigit()]
             if guild_ids:
-                guild_objects = [discord.Object(id=gid) for gid in guild_ids]
-                # This call will now succeed because the library is updated.
-                await bot.tree.sync(guilds=guild_objects)
-                log.info(f"Successfully synced commands to guilds: {guild_ids}")
+                log.info(f"Syncing commands to {len(guild_ids)} specified guilds...")
+                for guild_id in guild_ids:
+                    try:
+                        guild = discord.Object(id=guild_id)
+                        await bot.tree.sync(guild=guild)
+                        log.info(f"Commands successfully synced to Guild ID: {guild_id}")
+                    except Exception as e:
+                        log.error(f"Failed to sync commands to Guild ID {guild_id}: {e}")
             else:
+                log.warning("GUILD_IDS was set, but no valid IDs were found. Performing global sync.")
                 await bot.tree.sync()
         else:
+            log.warning("GUILD_IDS environment variable not set. Performing global command sync.")
             await bot.tree.sync()
     
         log.info("==================================================")
