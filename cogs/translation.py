@@ -1,10 +1,7 @@
-# cog/translation.py
-
 import discord
 import logging
 from discord.ext import commands
 from discord import app_commands
-from discord.app_commands import locale_str
 
 # Import our core services
 from core import DatabaseManager, TextTranslator, UsageManager, language_autocomplete, SUPPORTED_LANGUAGES
@@ -42,21 +39,23 @@ FLAG_TO_LANGUAGE = {
 
 @app_commands.guild_only()
 class TranslationCog(commands.Cog, name="Translation"):
-    """
-    A cog for managing message translations through context menus and reactions.
-    """
     def __init__(self, bot: commands.Bot, db_manager: DatabaseManager, translator: TextTranslator, usage_manager: UsageManager):
         self.bot = bot
         self.db = db_manager
         self.translator = translator
         self.usage = usage_manager
-        self.translating_messages = set()
+
+        # --- THIS IS THE CORRECTED PART ---
+        # 1. Manually create the ContextMenu object
+        translate_menu = app_commands.ContextMenu(
+            name='Translate Message',
+            callback=self.translate_message_callback, # Point to the callback method below
+        )
+        # 2. Add it to the cog's application commands
+        self.add_app_command(translate_menu)
+        # --- END CORRECTION ---
 
     async def perform_translation(self, original_message_content: str, target_lang: str) -> str | None:
-        """
-        A helper function to centralize translation logic and usage checking.
-        Returns translated text or a user-facing error message.
-        """
         if not self.translator.is_initialized:
             log.warning("Translation attempted but translator is not initialized.")
             return "Translation service is currently unavailable."
@@ -76,7 +75,6 @@ class TranslationCog(commands.Cog, name="Translation"):
     @app_commands.autocomplete(language=language_autocomplete)
     @app_commands.describe(language="The language you want messages to be translated into for you.")
     async def set_language(self, interaction: discord.Interaction, language: str):
-        """Allows a user to set their preferred language for translations."""
         if language not in SUPPORTED_LANGUAGES:
             await interaction.response.send_message(
                 f"Sorry, `{language}` is not a supported language code. Please choose from the list.",
@@ -101,7 +99,6 @@ class TranslationCog(commands.Cog, name="Translation"):
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
-        """Translates a message when a user reacts with a valid flag emoji."""
         if payload.user_id == self.bot.user.id or (payload.member and payload.member.bot):
             return
 
@@ -124,7 +121,6 @@ class TranslationCog(commands.Cog, name="Translation"):
             translated_text = await self.perform_translation(message.content, target_language)
             if translated_text:
                 await message.reply(content=translated_text, mention_author=False)
-
 
     async def translate_message_callback(self, interaction: discord.Interaction, message: discord.Message):
         """The actual logic for the 'Translate Message' context menu."""
@@ -150,8 +146,6 @@ class TranslationCog(commands.Cog, name="Translation"):
         else:
             await interaction.followup.send("An error occurred during translation. Please try again.", ephemeral=True)
 
-
-# The setup function is now very simple
 async def setup(bot: commands.Bot):
     """The setup function for the cog."""
     if not all(hasattr(bot, attr) for attr in ['db_manager', 'translator', 'usage_manager']):
