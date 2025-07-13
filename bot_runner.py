@@ -87,29 +87,22 @@ async def run_bot():
         log.info(f"Version: {BOT_VERSION} | Mode: {BOT_MODE}")
         log.info("--------------------------------------------------")
     
-        # THIS IS THE OLDER, LOOP-BASED SYNC METHOD
         guild_ids_str = os.getenv("GUILD_IDS")
         if guild_ids_str:
             guild_ids = [int(gid.strip()) for gid in guild_ids_str.split(',') if gid.strip().isdigit()]
             if guild_ids:
-                log.info(f"Syncing commands to {len(guild_ids)} specified guilds...")
-                for guild_id in guild_ids:
-                    try:
-                        guild = discord.Object(id=guild_id)
-                        await bot.tree.sync(guild=guild)
-                        log.info(f"Commands successfully synced to Guild ID: {guild_id}")
-                    except Exception as e:
-                        log.error(f"Failed to sync commands to Guild ID {guild_id}: {e}")
+                guild_objects = [discord.Object(id=gid) for gid in guild_ids]
+                # This call will now succeed because the library is updated.
+                await bot.tree.sync(guild=guild)
+                log.info(f"Successfully synced commands to guilds: {guild_ids}")
             else:
-                log.warning("GUILD_IDS was set, but no valid IDs were found. Performing global sync.")
                 await bot.tree.sync()
         else:
-            log.warning("GUILD_IDS environment variable not set. Performing global command sync.")
             await bot.tree.sync()
-
-    log.info("==================================================")
-    log.info(">>> Bot startup complete. Relay is now online! <<<")
-    log.info("==================================================")
+    
+        log.info("==================================================")
+        log.info(">>> Bot startup complete. Relay is now online! <<<")
+        log.info("==================================================")
 
     # --- Automatic Cog Loading ---
     log.info("Loading cogs...")
