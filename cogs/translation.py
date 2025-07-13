@@ -45,15 +45,8 @@ class TranslationCog(commands.Cog, name="Translation"):
         self.translator = translator
         self.usage = usage_manager
 
-        # --- THIS IS THE CORRECTED PART ---
-        # 1. Manually create the ContextMenu object
-        translate_menu = app_commands.ContextMenu(
-            name='Translate Message',
-            callback=self.translate_message_callback, # Point to the callback method below
-        )
-        # 2. Add it to the cog's application commands
+        translate_menu = app_commands.ContextMenu(name='Translate Message', callback=self.translate_message_callback)
         self.add_app_command(translate_menu)
-        # --- END CORRECTION ---
 
     async def perform_translation(self, original_message_content: str, target_lang: str) -> str | None:
         if not self.translator.is_initialized:
