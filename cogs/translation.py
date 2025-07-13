@@ -1,5 +1,3 @@
-# cogs/translation.py
-
 import discord
 import logging
 from discord.ext import commands
@@ -8,12 +6,10 @@ from discord.app_commands import locale_str
 
 # Import our core services
 from core import DatabaseManager, TextTranslator, UsageManager, language_autocomplete, SUPPORTED_LANGUAGES
-from core.localizer import BotLocalizer
 
 log = logging.getLogger(__name__)
 
 # A mapping from country flag emojis to ISO 639-1 language codes.
-# This is not exhaustive but covers many common languages.
 FLAG_TO_LANGUAGE = {
     '🇺🇸': 'en', '🇬🇧': 'en', '🇦🇺': 'en', # English
     '🇪🇸': 'es', '🇲🇽': 'es', '🇦🇷': 'es', # Spanish
@@ -52,7 +48,7 @@ class TranslationCog(commands.Cog, name="Translation"):
         self.db = db_manager
         self.translator = translator
         self.usage = usage_manager
-        
+        self.translating_messages = set()
 
     async def perform_translation(self, original_message_content: str, target_lang: str) -> str | None:
         """
@@ -75,7 +71,7 @@ class TranslationCog(commands.Cog, name="Translation"):
         return translated_text
 
     @app_commands.command(name="set_language", description="Set your preferred language for translations.")
-    @app_commands.autocomplete(language=language_autocomplete) # Uses the imported function
+    @app_commands.autocomplete(language=language_autocomplete)
     @app_commands.describe(language="The language you want messages to be translated into for you.")
     async def set_language(self, interaction: discord.Interaction, language: str):
         """Allows a user to set their preferred language for translations."""
@@ -87,14 +83,9 @@ class TranslationCog(commands.Cog, name="Translation"):
             return
 
         try:
-            # We need to get the flag generation logic, which is currently in HubManagerCog.
-            # This suggests we should also move LANG_TO_COUNTRY_CODE and country_code_to_flag to core.utils!
-            # Let's assume we do that. (See note below)
-            
             await self.db.set_user_preferences(user_id=interaction.user.id, user_locale=language)
             log.info(f"User {interaction.user.id} manually set their language to '{language}'.")
             
-            # This part will require moving more utilities. For now, let's keep it simple.
             await interaction.response.send_message(
                 f"Your preferred language has been set to **{SUPPORTED_LANGUAGES[language]}** (`{language}`).",
                 ephemeral=True
@@ -132,52 +123,17 @@ class TranslationCog(commands.Cog, name="Translation"):
             if translated_text:
                 await message.reply(content=translated_text, mention_author=False)
 
-#@app_commands.context_menu(name='Translate Message')
-#async def translate_message_context(interaction: discord.Interaction, message: discord.Message):
-#    """Right-click context menu command to translate a message privately."""
-#    # We must get the cog to access its methods
-#    translation_cog = interaction.client.get_cog("Translation")
-#    if not translation_cog:
-#        log.error("TranslationCog not found during context menu call.")
-#        await interaction.response.send_message("The translation service is currently unavailable.", ephemeral=True)
-#        return
-#
-#    await interaction.response.defer(ephemeral=True)
-#
-#    if not message.content:
-#        await interaction.followup.send("This message has no text to translate.")
-#        return
-#
-#    # Use the cog's database connection
-#    target_language = await translation_cog.db.get_user_preferences(interaction.user.id)
-#    if not target_language:
-#        await interaction.followup.send("I don't know your preferred language yet! Please use /set_language to set it up.", ephemeral=True)
-#        return
-
-    log.info(f"Context menu translation triggered by {interaction.user.name} for language '{target_language}'.")
-    
-    # Use the cog's helper method
-    translated_text = await translation_cog.perform_translation(message.content, target_language)
-
-    if translated_text and ("unavailable" in translated_text or "limit has been reached" in translated_text):
-        await interaction.followup.send(translated_text)
-    elif translated_text:
-        embed = discord.Embed(title="Translation Result", description=translated_text, color=discord.Color.blue())
-        embed.set_footer(text=f"Original message by {message.author.display_name}")
-        await interaction.followup.send(embed=embed)
-    else:
-        await interaction.followup.send("An error occurred during translation. Please try again.", ephemeral=True)
-
+# The setup function is the single point of entry for this file.
 async def setup(bot: commands.Bot):
     """The setup function for the cog."""
     if not all(hasattr(bot, attr) for attr in ['db_manager', 'translator', 'usage_manager']):
         log.critical("TranslationCog cannot be loaded: Core services not found on bot object.")
         return
     
-    # Create the cog instance first
+    # Create the cog instance first, so we can use its methods.
     cog = TranslationCog(bot, bot.db_manager, bot.translator, bot.usage_manager)
 
-    # --- THE CONTEXT MENU DEFINITION MUST BE INDENTED TO BE INSIDE SETUP ---
+    # Define the context menu locally inside the setup function.
     @app_commands.context_menu(name='Translate Message')
     async def translate_message_context(interaction: discord.Interaction, message: discord.Message):
         """Right-click context menu command to translate a message privately."""
@@ -187,7 +143,7 @@ async def setup(bot: commands.Bot):
             await interaction.followup.send("This message has no text to translate.")
             return
 
-        # Use the `cog` variable defined within the setup function
+        # Use the `cog` variable defined a few lines above.
         target_language = await cog.db.get_user_preferences(interaction.user.id)
         if not target_language:
             await interaction.followup.send("I don't know your preferred language yet! Please use /set_language to set it up.", ephemeral=True)
@@ -204,9 +160,9 @@ async def setup(bot: commands.Bot):
         else:
             await interaction.followup.send("An error occurred during translation. Please try again.", ephemeral=True)
     
-    # Add the newly defined command to the tree
+    # Add the newly defined local command to the bot's command tree.
     bot.tree.add_command(translate_message_context)
     log.info("TRANSLATION_COG: Defined and added 'Translate Message' context menu.")
 
-    # Finally, add the cog itself
+    # Finally, add the cog itself to the bot.
     await bot.add_cog(cog)
