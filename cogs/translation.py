@@ -140,10 +140,10 @@ class TranslationCog(commands.Cog, name="Translation"):
             await interaction.followup.send("An error occurred during translation. Please try again.", ephemeral=True)
 
 async def setup(bot: commands.Bot):
-    """The setup function is now simple and clean."""
+    """The setup function for the cog."""
     if not all(hasattr(bot, attr) for attr in ['db_manager', 'translator', 'usage_manager']):
-        log.critical("HubManagerCog cannot be loaded: Core services not found on bot object.")
+        log.critical("TranslationCog cannot be loaded: Core services not found on bot object.")
         return
-
-    await bot.add_cog(HubManagerCog(bot, bot.db_manager, bot.translator, bot.usage_manager))
-    log.info("HUB_MANAGER_COG: Cog loaded, context menu registered in __init__.")
+    
+    await bot.add_cog(TranslationCog(bot, bot.db_manager, bot.translator, bot.usage_manager))
+    log.info("TRANSLATION_COG: Cog loaded, context menu registered in __init__.")
