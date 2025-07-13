@@ -40,6 +40,10 @@ def country_code_to_flag(code: str) -> str:
 MAIN_LANGUAGE_COUNTRY_CODE = LANG_TO_COUNTRY_CODE.get(MAIN_LANGUAGE, 'US')
 MAIN_LANGUAGE_FLAG = country_code_to_flag(MAIN_LANGUAGE_COUNTRY_CODE)
 
+@app_commands.context_menu(name="Translate this Channel")
+async def translate_channel_context(interaction: discord.Interaction, message: discord.Message):
+    pass
+
 class UITranslator:
     def __init__(self):
         self.translations = {}
@@ -579,5 +583,14 @@ async def setup(bot: commands.Bot):
         log.critical("HubManagerCog cannot be loaded: Core services not found on bot object.")
         return
 
-    await bot.add_cog(HubManagerCog(bot, bot.db_manager, bot.translator, bot.usage_manager))
-    log.info("HUB_MANAGER_COG: Cog loaded and context menu added to tree.")
+    cog = HubManagerCog(bot, bot.db_manager, bot.translator, bot.usage_manager)
+    
+    # Overwrite the placeholder callback with the real one from the cog instance
+    translate_channel_context.callback = cog.translate_channel_callback
+
+    # Manually add the now-linked command to the bot's tree
+    bot.tree.add_command(translate_channel_context)
+
+    # Add the cog, which will register its own slash commands
+    await bot.add_cog(cog)
+    log.info("HUB_MANAGER_COG: Cog and context menu loaded and linked.")

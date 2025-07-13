@@ -37,6 +37,10 @@ FLAG_TO_LANGUAGE = {
     '🇹🇷': 'tr', # Turkish
 }
 
+@app_commands.context_menu(name="Translate Message")
+async def translate_message_context(interaction: discord.Interaction, message: discord.Message):
+    pass
+
 @app_commands.guild_only()
 class TranslationCog(commands.Cog, name="Translation"):
     def __init__(self, bot: commands.Bot, db_manager: DatabaseManager, translator: TextTranslator, usage_manager: UsageManager):
@@ -145,5 +149,14 @@ async def setup(bot: commands.Bot):
         log.critical("TranslationCog cannot be loaded: Core services not found on bot object.")
         return
     
-    await bot.add_cog(TranslationCog(bot, bot.db_manager, bot.translator, bot.usage_manager))
-    log.info("TRANSLATION_COG: Cog loaded and context menu added to tree.")
+    cog = TranslationCog(bot, bot.db_manager, bot.translator, bot.usage_manager)
+    
+    # Overwrite the placeholder callback with the real one from the cog instance
+    translate_message_context.callback = cog.translate_message_callback
+
+    # Manually add the now-linked command to the bot's tree
+    bot.tree.add_command(translate_message_context)
+
+    # Add the cog, which will register its own slash commands
+    await bot.add_cog(cog)
+    log.info("TRANSLATION_COG: Cog and context menu loaded and linked.")
