@@ -164,8 +164,13 @@ class HubManagerCog(commands.Cog, name="Hub Manager"):
         self.check_hubs_for_warnings.start()
         self.check_hubs_for_expiration.start()
 
-        self.translate_channel_menu = app_commands.ContextMenu(name='Translate this Channel', callback=self.translate_channel_callback)
+        log.info("[HUB_MANAGER_COG] Initializing and adding 'Translate this Channel' context menu...")
+        self.translate_channel_menu = app_commands.ContextMenu(
+            name='Translate this Channel',
+            callback=self.translate_channel_callback,
+        )
         self.bot.tree.add_command(self.translate_channel_menu)
+        log.info("[HUB_MANAGER_COG] 'Translate this Channel' context menu added to tree.")
 
     def cog_unload(self):
         self.check_hubs_for_warnings.cancel()

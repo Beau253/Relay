@@ -3,7 +3,7 @@
 import asyncio
 import logging
 from dotenv import load_dotenv
-from bot_runner import run_bot
+from bot_runner import main as run_bot
 from core import ShutdownForBotRotation
 
 # Load environment variables from the .env file.

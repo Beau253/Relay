@@ -29,112 +29,107 @@ BOT_VERSION = get_current_version()
 
 
 class RelayBot(commands.Bot):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # Initialize managers with no dependencies first
+    def __init__(self, intents):
+        log.info("[RELAYBOT] Initializing bot subclass...")
+        super().__init__(command_prefix="!", intents=intents)
+
+        # Create manager instances but DO NOT initialize them here.
+        log.info("[RELAYBOT] Creating manager instances...")
         self.db_manager = DatabaseManager()
         self.translator = TextTranslator()
-        
-        # Initialize managers that depend on the above
         self.gcp_pool_manager = GoogleProjectPoolManager(self.db_manager)
         self.usage_manager = UsageManager(self.db_manager, self.gcp_pool_manager)
         self.bot_pool_manager = BotPoolManager(self.db_manager, self.usage_manager)
+        log.info("[RELAYBOT] Manager instances created.")
 
     async def on_ready(self):
-        log.info(f"Logged in as {self.user} (ID: {self.user.id})")
+        log.info("="*50)
+        log.info(f"Relay is online. Logged in as {self.user} (ID: {self.user.id})")
         log.info(f"Version: {BOT_VERSION} | Mode: {BOT_MODE}")
-        log.info("--------------------------------------------------")
-        log.info(">>> Bot startup complete. Relay is now online! <<<")
-        log.info("==================================================")
-        
+        log.info("="*50)
+
     async def setup_hook(self):
         """
         This is the guaranteed entry point for all async setup. It runs after login
-        but before on_ready. This is where we load cogs and sync the tree.
+        but before on_ready. This is where we will load cogs and sync the tree.
         """
-        log.info("--- [SETUP HOOK] Starting async setup ---")
-        
-        # 1. Initialize core services (in dependency order)
-        log.info("[SETUP HOOK] Initializing Core Services...")
-        await self.db_manager.initialize()
-        await self.gcp_pool_manager.initialize(self.translator)
-        await self.usage_manager.initialize()
-        await self.bot_pool_manager.initialize()
-        log.info("[SETUP HOOK] Core Services Initialized.")
+        log.info("--- [SETUP HOOK] Starting guaranteed async setup ---")
 
-        # 2. Set the localizer for the command tree
-        log.info("[SETUP HOOK] Setting command tree translator...")
+        # Step 1: Initialize core services (in dependency order)
+        log.info("[SETUP HOOK] Step 1: Initializing Core Services...")
+        try:
+            # We don't need to re-initialize bot_pool_manager as it was needed for the token
+            await self.db_manager.initialize()
+            await self.gcp_pool_manager.initialize(self.translator)
+            await self.usage_manager.initialize()
+            log.info("[SETUP HOOK] ✅ Core Services Initialized.")
+        except Exception as e:
+            log.critical(f"[SETUP HOOK] ❌ FAILED to initialize core services: {e}", exc_info=True)
+            await self.close()
+            return
+
+        # Step 2: Set the localizer for the command tree
+        log.info("[SETUP HOOK] Step 2: Setting command tree translator...")
         localizer = BotLocalizer()
         await self.tree.set_translator(localizer)
-        log.info("[SETUP HOOK] Translator set.")
+        log.info("[SETUP HOOK] ✅ Translator set.")
 
-        # 3. Load all cogs from the /cogs directory
-        log.info("[SETUP HOOK] Loading Cogs...")
+        # Step 3: Load all cogs from the /cogs directory
+        log.info("[SETUP HOOK] Step 3: Loading Cogs...")
         script_dir = os.path.dirname(os.path.abspath(__file__))
         cogs_dir = os.path.join(script_dir, 'cogs')
         for filename in os.listdir(cogs_dir):
             if filename.endswith('.py') and not filename.startswith('__'):
                 try:
                     await self.load_extension(f'cogs.{filename[:-3]}')
-                    log.info(f" -> Successfully loaded cog: {filename}")
+                    log.info(f"  -> ✅ Successfully loaded cog: {filename}")
                 except Exception as e:
-                    log.error(f" -> Failed to load cog: {filename}", exc_info=e)
-        log.info("[SETUP HOOK] Cog loading complete.")
+                    log.error(f"  -> ❌ Failed to load cog: {filename}", exc_info=e)
+        log.info("[SETUP HOOK] ✅ Cog loading complete.")
         
-        # 4. Sync the command tree AFTER all cogs have been loaded
-        log.info("[SETUP HOOK] Syncing command tree...")
-        guild_ids_str = os.getenv("GUILD_IDS")
-        if guild_ids_str:
-            guild_ids = [int(gid.strip()) for gid in guild_ids_str.split(',') if gid.strip().isdigit()]
-            for guild_id in guild_ids:
-                try:
-                    guild = discord.Object(id=guild_id)
-                    await self.tree.sync(guild=guild)
-                    log.info(f"Commands successfully synced to Guild ID: {guild_id}")
-                except Exception as e:
-                    log.error(f"Failed to sync commands to Guild ID {guild_id}: {e}")
-        else:
-            log.warning("GUILD_IDS environment variable not set. Performing global command sync.")
-            await self.tree.sync()
-        log.info("[SETUP HOOK] Command tree synced.")
+        # Step 4: Sync the command tree AFTER all cogs have been loaded
+        log.info("[SETUP HOOK] Step 4: Syncing command tree...")
+        try:
+            synced_commands = await self.tree.sync()
+            log.info(f"[SETUP HOOK] ✅ Command tree synced successfully. {len(synced_commands)} commands registered.")
+        except Exception as e:
+            log.critical(f"[SETUP HOOK] ❌ FAILED TO SYNC COMMANDS: {e}", exc_info=True)
+
         log.info("--- [SETUP HOOK] Finished ---")
 
-# --- Main Bot Runner Function ---
-async def run_bot():
-    """
-    Initializes and runs the Discord bot.
-    """
-    # Define the intents required for the bot's features.
+async def main():
+    """Main entry point."""
+    log.info("[MAIN] Script starting...")
     intents = discord.Intents.default()
     intents.message_content = True
     intents.members = True
     intents.reactions = True
 
-    # Create an instance of our new bot class
-    bot = RelayBot(command_prefix="!", intents=intents)
-    
-    # --- Get Active Token from the Pool Manager ---
-    # This must be done after bot instantiation but before login
+    bot = RelayBot(intents=intents)
+
     try:
-        # We need to manually initialize the pool manager here to get the token
+        log.info("[MAIN] Initializing services required for login token...")
+        # We must initialize these specific managers to get the token before login.
+        # The full initialization will happen in the setup_hook.
         await bot.db_manager.initialize()
-        await bot.usage_manager.db.initialize() # Ensure db is ready for usage manager
         await bot.bot_pool_manager.initialize()
         active_token = await bot.bot_pool_manager.get_active_token()
-    except ShutdownForBotRotation as e:
-        log.warning(f"Shutdown signal received during startup: {e}")
-        raise e
-    
-    if not active_token:
-        log.critical("FATAL: No active token could be determined by the BotPoolManager.")
-        return
+        
+        if not active_token:
+            log.critical("FATAL: No active token found. Bot cannot start.")
+            return
 
-    # --- Run the Bot with Graceful Shutdown ---
-    try:
+        log.info("[MAIN] Attempting to start bot with token...")
         await bot.start(active_token)
+    
+    except ShutdownForBotRotation as e:
+        log.info(f"Shutdown signal received: {e}. Exiting process.")
+    except Exception as e:
+        log.critical("An unhandled exception in main caused a fatal crash.", exc_info=True)
     finally:
-        log.info("Closing database connection pool.")
-        await bot.db_manager.close()
+        log.info("[MAIN] Closing database connection pool.")
+        if bot.db_manager.is_initialized:
+            await bot.db_manager.close()
 
 # --- OLD Main Bot Runner Function ---
 #async def run_bot():
