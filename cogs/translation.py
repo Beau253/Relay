@@ -45,9 +45,6 @@ class TranslationCog(commands.Cog, name="Translation"):
         self.translator = translator
         self.usage = usage_manager
 
-        self.translate_message_menu = app_commands.ContextMenu(name='Translate Message', callback=self.translate_message_callback)
-        self.bot.tree.add_command(self.translate_message_menu)
-
         log.info("[TRANSLATION_COG] Initializing and adding 'Translate Message' context menu...")
         self.translate_message_menu = app_commands.ContextMenu(
             name='Translate Message',
@@ -55,7 +52,7 @@ class TranslationCog(commands.Cog, name="Translation"):
         )
         self.bot.tree.add_command(self.translate_message_menu)
         log.info("[TRANSLATION_COG] 'Translate Message' context menu added to tree.")
-        
+
     def cog_unload(self):
         log.info("[TRANSLATION_COG] Unloading and removing 'Translate Message' context menu.")
         self.bot.tree.remove_command(self.translate_message_menu.name, type=self.translate_message_menu.type)
