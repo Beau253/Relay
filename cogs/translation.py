@@ -37,10 +37,6 @@ FLAG_TO_LANGUAGE = {
     '🇹🇷': 'tr', # Turkish
 }
 
-@app_commands.context_menu(name="Translate Message")
-async def translate_message_context(interaction: discord.Interaction, message: discord.Message):
-    pass
-
 @app_commands.guild_only()
 class TranslationCog(commands.Cog, name="Translation"):
     def __init__(self, bot: commands.Bot, db_manager: DatabaseManager, translator: TextTranslator, usage_manager: UsageManager):
@@ -49,8 +45,11 @@ class TranslationCog(commands.Cog, name="Translation"):
         self.translator = translator
         self.usage = usage_manager
 
-        translate_menu = app_commands.ContextMenu(name='Translate Message', callback=self.translate_message_callback)
-        self.add_app_command(translate_menu)
+        self.translate_message_menu = app_commands.ContextMenu(
+            name='Translate Message',
+            callback=self.translate_message_callback,
+        )
+        self.bot.tree.add_command(self.translate_message_menu)
 
     async def perform_translation(self, original_message_content: str, target_lang: str) -> str | None:
         if not self.translator.is_initialized:
@@ -144,19 +143,10 @@ class TranslationCog(commands.Cog, name="Translation"):
             await interaction.followup.send("An error occurred during translation. Please try again.", ephemeral=True)
 
 async def setup(bot: commands.Bot):
-    """The setup function for the cog."""
+    """The setup function is now simple and clean."""
     if not all(hasattr(bot, attr) for attr in ['db_manager', 'translator', 'usage_manager']):
-        log.critical("HubManagerCog cannot be loaded: Core services not found on bot object.")
+        log.critical("TranslationCog cannot be loaded: Core services not found on bot object.")
         return
-
-    cog = HubManagerCog(bot, bot.db_manager, bot.translator, bot.usage_manager)
     
-    # Overwrite the placeholder callback with the real one from the cog instance
-    translate_channel_context.callback = cog.translate_channel_callback
-
-    # Manually add the now-linked command to the bot's tree
-    bot.tree.add_command(translate_channel_context)
-
-    # Add the cog, which will register its own slash commands
-    await bot.add_cog(cog)
-    log.info("HUB_MANAGER_COG: Cog and context menu loaded and linked.")
+    await bot.add_cog(TranslationCog(bot, bot.db_manager, bot.translator, bot.usage_manager))
+    log.info("TRANSLATION_COG: Cog loaded, context menu registered in __init__.")

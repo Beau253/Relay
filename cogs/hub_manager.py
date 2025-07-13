@@ -40,10 +40,6 @@ def country_code_to_flag(code: str) -> str:
 MAIN_LANGUAGE_COUNTRY_CODE = LANG_TO_COUNTRY_CODE.get(MAIN_LANGUAGE, 'US')
 MAIN_LANGUAGE_FLAG = country_code_to_flag(MAIN_LANGUAGE_COUNTRY_CODE)
 
-@app_commands.context_menu(name="Translate this Channel")
-async def translate_channel_context(interaction: discord.Interaction, message: discord.Message):
-    pass
-
 class UITranslator:
     def __init__(self):
         self.translations = {}
@@ -168,8 +164,11 @@ class HubManagerCog(commands.Cog, name="Hub Manager"):
         self.check_hubs_for_warnings.start()
         self.check_hubs_for_expiration.start()
 
-        hub_menu = app_commands.ContextMenu(name='Translate this Channel', callback=self.translate_channel_callback)
-        self.add_app_command(hub_menu)
+        self.translate_channel_menu = app_commands.ContextMenu(
+            name='Translate this Channel',
+            callback=self.translate_channel_callback,
+        )
+        self.bot.tree.add_command(self.translate_channel_menu)
 
     def cog_unload(self):
         self.check_hubs_for_warnings.cancel()
@@ -578,19 +577,10 @@ class HubManagerCog(commands.Cog, name="Hub Manager"):
 
 # The setup function is now very simple
 async def setup(bot: commands.Bot):
-    """The setup function for the cog."""
+    """The setup function is now simple and clean."""
     if not all(hasattr(bot, attr) for attr in ['db_manager', 'translator', 'usage_manager']):
         log.critical("HubManagerCog cannot be loaded: Core services not found on bot object.")
         return
 
-    cog = HubManagerCog(bot, bot.db_manager, bot.translator, bot.usage_manager)
-    
-    # Overwrite the placeholder callback with the real one from the cog instance
-    translate_channel_context.callback = cog.translate_channel_callback
-
-    # Manually add the now-linked command to the bot's tree
-    bot.tree.add_command(translate_channel_context)
-
-    # Add the cog, which will register its own slash commands
-    await bot.add_cog(cog)
-    log.info("HUB_MANAGER_COG: Cog and context menu loaded and linked.")
+    await bot.add_cog(HubManagerCog(bot, bot.db_manager, bot.translator, bot.usage_manager))
+    log.info("HUB_MANAGER_COG: Cog loaded, context menu registered in __init__.")
