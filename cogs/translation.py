@@ -177,7 +177,7 @@ async def setup(bot: commands.Bot):
     # Create the cog instance first
     cog = TranslationCog(bot, bot.db_manager, bot.translator, bot.usage_manager)
 
-    # --- DEFINE AND ADD THE CONTEXT MENU HERE ---
+    # --- THE CONTEXT MENU DEFINITION MUST BE INDENTED TO BE INSIDE SETUP ---
     @app_commands.context_menu(name='Translate Message')
     async def translate_message_context(interaction: discord.Interaction, message: discord.Message):
         """Right-click context menu command to translate a message privately."""
@@ -187,6 +187,7 @@ async def setup(bot: commands.Bot):
             await interaction.followup.send("This message has no text to translate.")
             return
 
+        # Use the `cog` variable defined within the setup function
         target_language = await cog.db.get_user_preferences(interaction.user.id)
         if not target_language:
             await interaction.followup.send("I don't know your preferred language yet! Please use /set_language to set it up.", ephemeral=True)
