@@ -146,17 +146,17 @@ class TranslationCog(commands.Cog, name="Translation"):
 async def setup(bot: commands.Bot):
     """The setup function for the cog."""
     if not all(hasattr(bot, attr) for attr in ['db_manager', 'translator', 'usage_manager']):
-        log.critical("TranslationCog cannot be loaded: Core services not found on bot object.")
+        log.critical("HubManagerCog cannot be loaded: Core services not found on bot object.")
         return
-    
-    cog = TranslationCog(bot, bot.db_manager, bot.translator, bot.usage_manager)
+
+    cog = HubManagerCog(bot, bot.db_manager, bot.translator, bot.usage_manager)
     
     # Overwrite the placeholder callback with the real one from the cog instance
-    translate_message_context.callback = cog.translate_message_callback
+    translate_channel_context.callback = cog.translate_channel_callback
 
     # Manually add the now-linked command to the bot's tree
-    bot.tree.add_command(translate_message_context)
+    bot.tree.add_command(translate_channel_context)
 
     # Add the cog, which will register its own slash commands
     await bot.add_cog(cog)
-    log.info("TRANSLATION_COG: Cog and context menu loaded and linked.")
+    log.info("HUB_MANAGER_COG: Cog and context menu loaded and linked.")
