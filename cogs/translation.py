@@ -126,34 +126,20 @@ class TranslationCog(commands.Cog, name="Translation"):
                 await message.reply(content=translated_text, mention_author=False)
 
 
-# The setup function is the single point of entry for this file.
-async def setup(bot: commands.Bot):
-    """The setup function for the cog."""
-    if not all(hasattr(bot, attr) for attr in ['db_manager', 'translator', 'usage_manager']):
-        log.critical("TranslationCog cannot be loaded: Core services not found on bot object.")
-        return
-    
-    # 1. Create the cog instance first.
-    cog = TranslationCog(bot, bot.db_manager, bot.translator, bot.usage_manager)
-
-    # 2. Define the context menu command here, OUTSIDE the class.
-    #    It can access the 'cog' variable from the line above.
-    @app_commands.context_menu(name='Translate Message')
-    async def translate_message_context(interaction: discord.Interaction, message: discord.Message):
-        """Right-click context menu command to translate a message privately."""
+    async def translate_message_callback(self, interaction: discord.Interaction, message: discord.Message):
+        """The actual logic for the 'Translate Message' context menu."""
         await interaction.response.defer(ephemeral=True)
 
         if not message.content:
             await interaction.followup.send("This message has no text to translate.")
             return
 
-        # Use the 'cog' instance to access its methods and properties.
-        target_language = await cog.db.get_user_preferences(interaction.user.id)
+        target_language = await self.db.get_user_preferences(interaction.user.id)
         if not target_language:
             await interaction.followup.send("I don't know your preferred language yet! Please use /set_language to set it up.", ephemeral=True)
             return
 
-        translated_text = await cog.perform_translation(message.content, target_language)
+        translated_text = await self.perform_translation(message.content, target_language)
 
         if translated_text and ("unavailable" in translated_text or "limit has been reached" in translated_text):
             await interaction.followup.send(translated_text)
@@ -163,11 +149,14 @@ async def setup(bot: commands.Bot):
             await interaction.followup.send(embed=embed)
         else:
             await interaction.followup.send("An error occurred during translation. Please try again.", ephemeral=True)
-    
-    # 3. Manually add the context menu command to the bot's tree.
-    bot.tree.add_command(translate_message_context)
-    log.info("TRANSLATION_COG: Manually added 'Translate Message' context menu.")
 
-    # 4. Finally, add the cog itself. The cog will register its own SLASH commands.
-    await bot.add_cog(cog)
-    log.info("TRANSLATION_COG: Cog loaded.")
+
+# The setup function is now very simple
+async def setup(bot: commands.Bot):
+    """The setup function for the cog."""
+    if not all(hasattr(bot, attr) for attr in ['db_manager', 'translator', 'usage_manager']):
+        log.critical("TranslationCog cannot be loaded: Core services not found on bot object.")
+        return
+    
+    await bot.add_cog(TranslationCog(bot, bot.db_manager, bot.translator, bot.usage_manager))
+    log.info("TRANSLATION_COG: Cog loaded and context menu added to tree.")

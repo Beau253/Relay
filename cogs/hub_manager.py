@@ -576,39 +576,30 @@ class HubManagerCog(commands.Cog, name="Hub Manager"):
                 else:
                     final_content_to_other_hub = f"{origin_flag_emoji} {attachment_links_str.strip()}"
 
-async def setup(bot: commands.Bot):
-    """The setup function for the cog."""
-    if not all(hasattr(bot, attr) for attr in ['db_manager', 'translator', 'usage_manager']):
-        log.critical("HubManagerCog cannot be loaded: Core services not found on bot object.")
-        return
-
-    # 1. Create the cog instance first.
-    cog = HubManagerCog(bot, bot.db_manager, bot.translator, bot.usage_manager)
-
-    # 2. Define the context menu command here, OUTSIDE the class.
-    @app_commands.context_menu(name='Translate this Channel')
-    async def translate_channel_context(interaction: discord.Interaction, message: discord.Message):
-        """Right-click context menu to create a translation hub for a channel."""
+    async def translate_channel_callback(self, interaction: discord.Interaction, message: discord.Message):
+        """The actual logic for the 'Translate this Channel' context menu."""
         channel = message.channel
 
         if not isinstance(channel, discord.TextChannel):
             await interaction.response.send_message("This action can only be used on a standard text channel.", ephemeral=True)
             return
 
-        # Use the 'cog' instance to access its methods.
-        user_locale = await cog.db.get_user_preferences(interaction.user.id)
+        user_locale = await self.db.get_user_preferences(interaction.user.id)
         if not user_locale:
             await interaction.response.send_message("I don't know your preferred language. Please use the onboarding process or /set_language to set it.", ephemeral=True)
             return
         
         target_language = user_locale if user_locale in SUPPORTED_LANGUAGES else user_locale.split('-')[0]
         
-        await cog.create_hub_logic(interaction, target_language, channel)
+        await self.create_hub_logic(interaction, target_language, channel)
 
-    # 3. Manually add the context menu command to the bot's tree.
-    bot.tree.add_command(translate_channel_context)
-    log.info("HUB_MANAGER_COG: Manually added 'Translate this Channel' context menu.")
 
-    # 4. Finally, add the cog itself to register its slash commands.
-    await bot.add_cog(cog)
-    log.info("HUB_MANAGER_COG: Cog loaded.")
+# The setup function is now very simple
+async def setup(bot: commands.Bot):
+    """The setup function for the cog."""
+    if not all(hasattr(bot, attr) for attr in ['db_manager', 'translator', 'usage_manager']):
+        log.critical("HubManagerCog cannot be loaded: Core services not found on bot object.")
+        return
+
+    await bot.add_cog(HubManagerCog(bot, bot.db_manager, bot.translator, bot.usage_manager))
+    log.info("HUB_MANAGER_COG: Cog loaded and context menu added to tree.")
