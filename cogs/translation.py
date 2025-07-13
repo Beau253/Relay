@@ -45,10 +45,7 @@ class TranslationCog(commands.Cog, name="Translation"):
         self.translator = translator
         self.usage = usage_manager
 
-        self.translate_message_menu = app_commands.ContextMenu(
-            name='Translate Message',
-            callback=self.translate_message_callback,
-        )
+        self.translate_message_menu = app_commands.ContextMenu(name='Translate Message', callback=self.translate_message_callback)
         self.bot.tree.add_command(self.translate_message_menu)
 
     async def perform_translation(self, original_message_content: str, target_lang: str) -> str | None:
@@ -145,8 +142,8 @@ class TranslationCog(commands.Cog, name="Translation"):
 async def setup(bot: commands.Bot):
     """The setup function is now simple and clean."""
     if not all(hasattr(bot, attr) for attr in ['db_manager', 'translator', 'usage_manager']):
-        log.critical("TranslationCog cannot be loaded: Core services not found on bot object.")
+        log.critical("HubManagerCog cannot be loaded: Core services not found on bot object.")
         return
-    
-    await bot.add_cog(TranslationCog(bot, bot.db_manager, bot.translator, bot.usage_manager))
-    log.info("TRANSLATION_COG: Cog loaded, context menu registered in __init__.")
+
+    await bot.add_cog(HubManagerCog(bot, bot.db_manager, bot.translator, bot.usage_manager))
+    log.info("HUB_MANAGER_COG: Cog loaded, context menu registered in __init__.")
