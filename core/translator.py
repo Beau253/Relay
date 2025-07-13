@@ -81,6 +81,10 @@ class TextTranslator:
             log.error("Cannot translate: Translator service is not initialized or configured properly.")
             return None
 
+        if source_language and target_language and source_language.split('-')[0] == target_language.split('-')[0]:
+            log.info(f"Skipping translation: Source ('{source_language}') and target ('{target_language}') are effectively the same.")
+            return text
+            
         loop = asyncio.get_running_loop()
 
         try:

@@ -267,6 +267,13 @@ class HubManagerCog(commands.Cog, name="Hub Manager"):
         if not interaction.response.is_done():
             await interaction.response.defer(ephemeral=True)
 
+        if language.lower().startswith('en'):
+            await interaction.followup.send(
+                "❌ You cannot create a translation hub for English, as it is the main language of the server.", 
+                ephemeral=True
+            )
+            return
+
         if language not in SUPPORTED_LANGUAGES:
             await interaction.followup.send(f"Sorry, '{language}' is not a supported language code.", ephemeral=True)
             return
