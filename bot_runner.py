@@ -93,7 +93,7 @@ async def run_bot():
             if guild_ids:
                 guild_objects = [discord.Object(id=gid) for gid in guild_ids]
                 # This call will now succeed because the library is updated.
-                await bot.tree.sync(guild=guild)
+                await bot.tree.sync(guilds=guild_objects)
                 log.info(f"Successfully synced commands to guilds: {guild_ids}")
             else:
                 await bot.tree.sync()
