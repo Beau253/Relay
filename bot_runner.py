@@ -81,34 +81,35 @@ async def run_bot():
     bot.gcp_pool_manager = gcp_pool_manager
 
     # --- Register the Global Error Handler ---
-    @bot.tree.error
-    async def on_app_command_error(interaction: discord.Interaction, error: discord.app_commands.AppCommandError):
-        await send_error_report(interaction, error)
-
-    # --- Bot Startup Event ---
     @bot.event
     async def on_ready():
         log.info(f"Logged in as {bot.user} (ID: {bot.user.id})")
         log.info(f"Version: {BOT_VERSION} | Mode: {BOT_MODE}")
         log.info("--------------------------------------------------")
     
-        # With the updated discord.py, we can use the cleaner sync method.
+        # THIS IS THE OLDER, LOOP-BASED SYNC METHOD
         guild_ids_str = os.getenv("GUILD_IDS")
         if guild_ids_str:
             guild_ids = [int(gid.strip()) for gid in guild_ids_str.split(',') if gid.strip().isdigit()]
             if guild_ids:
-                guild_objects = [discord.Object(id=gid) for gid in guild_ids]
-                # This single call syncs all automatically-discovered commands to our test guilds.
-                await bot.tree.sync(guilds=guild_objects)
-                log.info(f"Successfully synced commands to guilds: {guild_ids}")
+                log.info(f"Syncing commands to {len(guild_ids)} specified guilds...")
+                for guild_id in guild_ids:
+                    try:
+                        guild = discord.Object(id=guild_id)
+                        await bot.tree.sync(guild=guild)
+                        log.info(f"Commands successfully synced to Guild ID: {guild_id}")
+                    except Exception as e:
+                        log.error(f"Failed to sync commands to Guild ID {guild_id}: {e}")
             else:
+                log.warning("GUILD_IDS was set, but no valid IDs were found. Performing global sync.")
                 await bot.tree.sync()
         else:
+            log.warning("GUILD_IDS environment variable not set. Performing global command sync.")
             await bot.tree.sync()
-    
-        log.info("==================================================")
-        log.info(">>> Bot startup complete. Relay is now online! <<<")
-        log.info("==================================================")
+
+    log.info("==================================================")
+    log.info(">>> Bot startup complete. Relay is now online! <<<")
+    log.info("==================================================")
 
     # --- Automatic Cog Loading ---
     log.info("Loading cogs...")
