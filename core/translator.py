@@ -71,9 +71,9 @@ class TextTranslator:
             self.is_initialized = False
 
     async def translate_text(
-        self, 
-        text: str, 
-        target_language: str, 
+        self,
+        text: str,
+        target_language: str,
         source_language: Optional[str] = None
     ) -> Optional[str]:
 
@@ -81,46 +81,45 @@ class TextTranslator:
             log.error("Cannot translate: Translator service is not initialized or configured properly.")
             return None
 
-        # --- Simple Language Code Mapping ---
-        # Here we can force a code if needed for debugging.
-        # For now, we confirm zh-TW is the correct code for Traditional Chinese.
+        # --- Language Code Mapping & Debugging ---
+        # If the target is Traditional Chinese, we remap it to the generic 'zh'
+        # code for better compatibility with the Google API.
         effective_target_language = target_language
         if target_language == 'zh-TW':
-            # This is the correct code for the Google API. We are not changing it,
-            # but this block is where you would force a change if needed for testing.
-            # For example: effective_target_language = 'zh'
-            log.info(f"Preparing to translate to Traditional Chinese. API code: '{effective_target_language}'")
-        
+            effective_target_language = 'zh'
+            log.info(f"Remapping target language 'zh-TW' to 'zh' for API call.")
+
         # --- Skip translating if source and target are the same ---
         if source_language and effective_target_language and source_language.split('-')[0] == effective_target_language.split('-')[0]:
             log.info(f"Skipping translation: Source ('{source_language}') and target ('{effective_target_language}') are effectively the same.")
             return text
-            
+
         loop = asyncio.get_running_loop()
 
+        # Log the exact parameters we are about to send to the API
+        api_params = {
+            "parent": self.parent,
+            "contents": [text],
+            "target_language_code": effective_target_language,
+            "source_language_code": source_language,
+            "mime_type": "text/plain",
+        }
+        log.info(f"Calling Google Translate API with params: {api_params}")
+
         try:
-            # We run the blocking API call in an executor to not freeze the bot
             response = await loop.run_in_executor(
                 None,
-                lambda: self.client.translate_text(
-                    parent=self.parent,
-                    contents=[text],
-                    target_language_code=effective_target_language, # Use our mapped code
-                    source_language_code=source_language,
-                    mime_type="text/plain",
-                )
+                lambda: self.client.translate_text(**api_params)
             )
 
-            if response.translations:
-                return response.translations[0].translated_text
+            if response and response.translations:
+                translated_text = response.translations[0].translated_text
+                log.info(f"Translation successful. Result: '{translated_text[:50]}...'")
+                return translated_text
             else:
-                log.warning(f"Translation API returned no translations for the given text to '{effective_target_language}'.")
+                log.warning(f"Translation to '{effective_target_language}' succeeded but API returned no translations.")
                 return None
 
-        except google_exceptions.PermissionDenied as e:
-            log.error(f"Permission denied for translation API. Check API enablement and permissions. Details: {e}", exc_info=True)
-            return None
         except Exception as e:
-            # This will catch other API errors like "Invalid language code"
             log.error(f"An error occurred during translation to '{effective_target_language}': {e}", exc_info=True)
             return None
