@@ -410,63 +410,68 @@ class HubManagerCog(commands.Cog, name="Hub Manager"):
     async def handle_message_from_source(self, message: discord.Message, hubs: List[asyncpg.Record]):
         """
         Translates a message from a source channel into all associated hub threads.
+        This is the corrected version that ensures all hubs are processed.
         """
         log.info(f"Relaying message from source channel {message.channel.id} to {len(hubs)} hubs.")
-        
-        current_guild_main_lang = MAIN_LANGUAGE
+
+        # --- Prepare message components once ---
+        text_to_translate = message.content.strip() if message.content else ""
+        attachment_links_str = "\n".join([att.proxy_url for att in message.attachments])
         current_source_flag_emoji = MAIN_LANGUAGE_FLAG
+        current_guild_main_lang = MAIN_LANGUAGE
+
         if message.guild:
             guild_config = await self.db.get_guild_config(message.guild.id)
             if guild_config and guild_config['main_language_code']:
                 current_guild_main_lang = guild_config['main_language_code']
-                source_country_code = LANG_TO_COUNTRY_CODE.get(current_guild_main_lang)
+                source_country_code = LANG_TO_COUNTRY_CODE.get(current_guild_main_lang, 'XX')
                 current_source_flag_emoji = country_code_to_flag(source_country_code)
 
-        attachment_links_str = ""
-        if message.attachments:
-            attachment_links_str = "\n".join([att.proxy_url for att in message.attachments])
-
+        # --- Loop through each hub and send the translated message ---
         for hub_record in hubs:
             target_lang = hub_record['language_code']
             thread_id = hub_record['thread_id']
             thread = self.bot.get_channel(thread_id)
-            
+
             if not thread or not isinstance(thread, discord.Thread):
-                log.warning(f"Hub thread {thread_id} not found for source channel {message.channel.id}. Skipping relay to this hub.")
+                log.warning(f"Hub thread {thread_id} not found for source channel {message.channel.id}. Skipping.")
                 continue
 
-            text_to_translate = message.content.strip() if message.content else ""
+            # Ensure we don't try to translate to the same language
+            if current_guild_main_lang == target_lang:
+                log.info(f"Skipping relay to hub {thread_id} because its language '{target_lang}' is the same as the source language.")
+                continue
+
             translated_text = ""
             if text_to_translate:
-                if self.usage.check_limit_exceeded(len(text_to_translate)): 
-                    log.warning(f"Translation to hub {thread_id} skipped: API usage limit has been reached.")
+                if self.usage.check_limit_exceeded(len(text_to_translate)):
+                    log.warning(f"Translation to hub {thread.id} skipped: API limit reached.")
                     translated_text = f"[Translation Skipped] {text_to_translate}"
                 else:
+                    # The translator will handle remapping 'zh-TW' to 'zh'
                     translation_result = await self.translator.translate_text(text_to_translate, target_lang, source_language=current_guild_main_lang)
                     if translation_result:
                         await self.usage.record_usage(len(text_to_translate))
                         translated_text = translation_result
                     else:
-                        log.error(f"Translation failed for '{text_to_translate}' to hub {thread_id}.")
-                        translated_text = f"[Translation Failed] {text_to_translate}"
+                        log.error(f"Translation failed for '{text_to_translate}' to hub {thread.id} (lang: {target_lang}).")
+                        # We continue here so we don't send a "Translation Failed" message
+                        continue
             
-            # Combine components into final message
+            # Construct the final message content
             final_content_parts = []
             if translated_text:
-                final_content_parts.append(f"{current_source_flag_emoji} {translated_text}")
-            
+                final_content_parts.append(translated_text)
             if attachment_links_str:
-                # If there was no text, prepend the flag to the attachment links
-                if not translated_text:
-                    final_content_parts.append(f"{current_source_flag_emoji}")
                 final_content_parts.append(attachment_links_str)
-                
-            final_content = "\n".join(final_content_parts)
 
-            if final_content:
-                await self._send_webhook_message(thread, final_content, message.author)
-            else:
-                log.info(f"No content to forward from source channel {message.channel.id} to hub {thread_id}.")
+            if not final_content_parts:
+                log.info(f"No content (text or attachments) to forward from source channel {message.channel.id} to hub {thread.id}.")
+                continue
+
+            final_content = f"{current_source_flag_emoji} " + "\n".join(final_content_parts)
+            
+            await self._send_webhook_message(thread, final_content, message.author)
 
 
     # Handle_message_from_hub
