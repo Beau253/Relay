@@ -145,8 +145,9 @@ class TranslationCog(commands.Cog, name="Translation"):
         """The actual logic for the 'Translate Message' context menu."""
         await interaction.response.defer(ephemeral=True)
 
-        if not message.content:
-            await interaction.followup.send("This message has no text to translate.")
+        # Check if there is anything at all to translate
+        if not message.content and not message.embeds:
+            await interaction.followup.send("This message has no text or embeds to translate.")
             return
 
         target_language = await self.db.get_user_preferences(interaction.user.id)
@@ -154,16 +155,42 @@ class TranslationCog(commands.Cog, name="Translation"):
             await interaction.followup.send("I don't know your preferred language yet! Please use /set_language to set it up.", ephemeral=True)
             return
 
-        translated_text = await self.perform_translation(message.content, target_language)
+        # --- NEW: Full translation logic for both text and embeds ---
+        translated_text = ""
+        if message.content:
+            translated_text = await self.perform_translation(message.content, target_language)
 
-        if translated_text and ("unavailable" in translated_text or "limit has been reached" in translated_text):
-            await interaction.followup.send(translated_text)
-        elif translated_text:
-            embed = discord.Embed(title="Translation Result", description=translated_text, color=discord.Color.blue())
-            embed.set_footer(text=f"Original message by {message.author.display_name}")
-            await interaction.followup.send(embed=embed)
-        else:
-            await interaction.followup.send("An error occurred during translation. Please try again.", ephemeral=True)
+        translated_embeds = []
+        if message.embeds:
+            for embed in message.embeds:
+                # Call the static helper method from the HubManagerCog
+                translated_embed = await HubManagerCog._translate_embed(self.translator, embed, target_language)
+                translated_embeds.append(translated_embed)
+
+        # If we only have text, send a simple embed.
+        if translated_text and not translated_embeds:
+            reply_embed = discord.Embed(
+                title="Translation Result",
+                description=translated_text,
+                color=discord.Color.blue()
+            )
+            reply_embed.set_footer(text=f"Original message by {message.author.display_name}")
+            await interaction.followup.send(embed=reply_embed)
+        
+        # If we have embeds (with or without text), send them all.
+        elif translated_embeds:
+            # Send the translated text first if it exists
+            if translated_text:
+                await interaction.followup.send(translated_text)
+                # Use a subsequent followup for the embeds
+                await interaction.followup.send(embeds=translated_embeds)
+            else:
+                # If only embeds, send them in the first followup
+                await interaction.followup.send(embeds=translated_embeds)
+        
+        # Handle case where text translation failed but there were no embeds
+        elif not translated_text and message.content:
+             await interaction.followup.send("An error occurred during translation. Please try again.", ephemeral=True)
 
 async def setup(bot: commands.Bot):
     """The setup function for the cog."""
