@@ -221,6 +221,8 @@ class AdminCog(commands.Cog, name="Admin"):
         log.info(f"Starting member sync for guild {guild.id}. Checking {total_members} members.")
 
         # 3. Loop through each member and apply logic
+        last_update_time = asyncio.get_event_loop().time()
+        
         for i, member in enumerate(members_to_check):
             # Non-blocking sleep to prevent hanging on one user
             await asyncio.sleep(0) 
@@ -248,15 +250,11 @@ class AdminCog(commands.Cog, name="Admin"):
                 except Exception as e:
                     log.error(f"Failed to remove role from {member.id}: {e}")
 
-            #######
-            # NEW: Progress Update Logic
-            # Update the message every 3 seconds to show progress
             current_time = asyncio.get_event_loop().time()
             if current_time - last_update_time > 3:
                 progress_percent = (i + 1) / total_members * 100
                 await interaction.edit_original_response(content=f"⚙️ Syncing members... {i+1}/{total_members} ({progress_percent:.1f}%) complete.")
                 last_update_time = current_time
-            #######
 
         # 4. Report the final results
         log.info(f"Member sync complete for guild {guild.id}. Added: {roles_added}, Removed: {roles_removed}.")
