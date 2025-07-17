@@ -222,9 +222,8 @@ class AdminCog(commands.Cog, name="Admin"):
 
         # 3. Loop through each member and apply logic
         for i, member in enumerate(members_to_check):
-            # To prevent rate limits and keep the bot responsive, add a small sleep
-            if i % 50 == 0:
-                await asyncio.sleep(1)
+            # Non-blocking sleep to prevent hanging on one user
+            await asyncio.sleep(0) 
 
             user_has_pref = await self.db.get_user_preferences(member.id)
             member_has_role = setup_role in member.roles
@@ -249,19 +248,30 @@ class AdminCog(commands.Cog, name="Admin"):
                 except Exception as e:
                     log.error(f"Failed to remove role from {member.id}: {e}")
 
-        # 4. Report the results
+            #######
+            # NEW: Progress Update Logic
+            # Update the message every 3 seconds to show progress
+            current_time = asyncio.get_event_loop().time()
+            if current_time - last_update_time > 3:
+                progress_percent = (i + 1) / total_members * 100
+                await interaction.edit_original_response(content=f"⚙️ Syncing members... {i+1}/{total_members} ({progress_percent:.1f}%) complete.")
+                last_update_time = current_time
+            #######
+
+        # 4. Report the final results
         log.info(f"Member sync complete for guild {guild.id}. Added: {roles_added}, Removed: {roles_removed}.")
         
-        embed = discord.Embed(
+        final_embed = discord.Embed(
             title="✅ Member Sync Complete",
             description=f"Checked **{total_members}** members.",
             color=discord.Color.green()
         )
-        embed.add_field(name="Setup Roles Assigned", value=str(roles_added))
-        embed.add_field(name="Setup Roles Removed", value=str(roles_removed))
-        embed.set_footer(text="Members who need to set their language now have the setup role.")
+        final_embed.add_field(name="Setup Roles Assigned", value=str(roles_added))
+        final_embed.add_field(name="Setup Roles Removed", value=str(roles_removed))
+        final_embed.set_footer(text="Members who need to set their language now have the setup role.")
         
-        await interaction.followup.send(embed=embed)
+        # Edit the original message one last time with the final embed report
+        await interaction.edit_original_response(content="Sync finished!", embed=final_embed)
 
 async def setup(bot: commands.Bot):
     """The setup function for the cog."""
