@@ -107,6 +107,10 @@ class OnboardingCog(commands.Cog, name="Onboarding"):
             log.info(f"Assigned '{setup_role.name}' role to new member {member.id}.")
             # Also ensure the role has permissions to see the channel
             await onboarding_channel.set_permissions(setup_role, view_channel=True)
+            await onboarding_channel.send(
+                f"Welcome, {member.mention}! Please click the button on the message above to get started.",
+                delete_after=300
+            )
         except discord.Forbidden:
             log.error(f"Failed to assign role to {member.id} in guild {member.guild.id}. Bot may be missing 'Manage Roles' permission or have a lower role.")
         except Exception as e:
