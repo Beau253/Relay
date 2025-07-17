@@ -381,12 +381,15 @@ class HubManagerCog(commands.Cog, name="Hub Manager"):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
-        if message.author.bot and message.author.id == self.bot.user.id:
+        # Check to ignore messages from the bot itself.
+        if message.author == self.bot.user:
             return
 
-        # Ignore messages sent by webhooks to prevent infinite loops.
-        if message.webhook_id: return
+        # This remains to ignore the bot's own webhook-sent translations.
+        if message.webhook_id:
+            return
         
+        # This remains to ignore empty messages or DMs.
         if not (message.content or message.attachments) or not message.guild:
             return
         
@@ -475,7 +478,7 @@ class HubManagerCog(commands.Cog, name="Hub Manager"):
 
 
     # Handle_message_from_hub
-    async def handle_message_from_hub(self, message: discord.Message, origin_hub_data: asyncpg.Record, all_hubs: List[asyncpg.Record]):
+        async def handle_message_from_hub(self, message: discord.Message, origin_hub_data: asyncpg.Record, all_hubs: List[asyncpg.Record]):
         """
         Translates a message from a hub thread back to the main source channel and all other associated hubs.
         """
@@ -502,20 +505,18 @@ class HubManagerCog(commands.Cog, name="Hub Manager"):
         
         # --- Translate once for each target language needed ---
         translations = {}
-        # First, generate the translation for the main channel
         if text_to_translate:
-            translations[current_guild_main_lang] = await self.translator.translate_text(text_to_translate, current_guild_main_lang, source_language=origin_lang_code)
-        
-        # Then, generate translations for all other unique hub languages
-        for hub in all_hubs:
-            lang = hub['language_code']
-            if text_to_translate and lang not in translations:
-                 translations[lang] = await self.translator.translate_text(text_to_translate, lang, source_language=origin_lang_code)
+            # Create a set of unique target languages to avoid redundant API calls
+            target_langs = {hub['language_code'] for hub in all_hubs}
+            target_langs.add(current_guild_main_lang)
+            
+            for lang in target_langs:
+                if lang != origin_lang_code: # No need to translate to its own language
+                    translations[lang] = await self.translator.translate_text(text_to_translate, lang, source_language=origin_lang_code)
 
-        # Record usage for all successful translations at once
-        if text_to_translate:
             successful_translations = sum(1 for t in translations.values() if t is not None)
-            await self.usage.record_usage(len(text_to_translate) * successful_translations)
+            if successful_translations > 0:
+                await self.usage.record_usage(len(text_to_translate) * successful_translations)
 
         # --- 1. Send to Main Source Channel ---
         log.info(f"Relaying message from hub {message.channel.id} to source channel {source_channel_id} (target: {current_guild_main_lang})")
@@ -542,29 +543,23 @@ class HubManagerCog(commands.Cog, name="Hub Manager"):
             if other_content:
                 await self._send_webhook_message(other_thread, other_content, message.author)
 
-            def build_final_message(self, flag: str, translated_text: Optional[str], attachments: str, fallback_text: str) -> str:
-                """Helper to construct the final message string."""
-                content_parts = []
-                
-                # Use the translated text if available, otherwise use the fallback
-                text_to_show = translated_text if translated_text is not None else fallback_text
-                
-                if text_to_show:
-                    content_parts.append(text_to_show)
-                if attachments:
-                    content_parts.append(attachments)
-                    
-                if not content_parts:
-                    return ""
-                    
-                return f"{flag} " + "\n".join(content_parts)
-
-            # This logic now correctly handles messages with ONLY attachments.
-            if attachment_links_str:
-                if final_content_to_other_hub:
-                    final_content_to_other_hub += attachment_links_str
-                else:
-                    final_content_to_other_hub = f"{origin_flag_emoji} {attachment_links_str.strip()}"
+    # --- FIX: Place the build_final_message function here, at the correct class level ---
+    def build_final_message(self, flag: str, translated_text: Optional[str], attachments: str, fallback_text: str) -> str:
+        """Helper to construct the final message string."""
+        content_parts = []
+        
+        # Use the translated text if available, otherwise use the fallback
+        text_to_show = translated_text if translated_text is not None else fallback_text
+        
+        if text_to_show:
+            content_parts.append(text_to_show)
+        if attachments:
+            content_parts.append(attachments)
+            
+        if not content_parts:
+            return ""
+            
+        return f"{flag} " + "\n".join(content_parts)
 
     async def translate_channel_callback(self, interaction: discord.Interaction, message: discord.Message):
         """The actual logic for the 'Translate this Channel' context menu."""
