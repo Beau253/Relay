@@ -131,13 +131,15 @@ class AdminCog(commands.Cog, name="Admin"):
     @app_commands.command(name="set_guild_config", description="Configure channels for this guild (Admin only).")
     @app_commands.describe(
         onboarding_channel="The channel for new member onboarding.",
-        admin_log_channel="The channel for bot administrative logs."
+        admin_log_channel="The channel for bot administrative logs.",
+        language_setup_role="The role given to new members to see the setup channel."
     )
     async def set_guild_config(
         self, 
         interaction: discord.Interaction, 
         onboarding_channel: Optional[discord.TextChannel] = None, 
-        admin_log_channel: Optional[discord.TextChannel] = None
+        admin_log_channel: Optional[discord.TextChannel] = None,
+        language_setup_role: Optional[discord.Role] = None
     ):
         """
         Sets the onboarding and admin log channels for the guild.
@@ -150,32 +152,33 @@ class AdminCog(commands.Cog, name="Admin"):
 
         guild_id = interaction.guild.id
         
-        # Extract channel IDs, using None if channel is not provided by user
+        # Get IDs from the provided objects
         onboarding_cid = onboarding_channel.id if onboarding_channel else None
         admin_log_cid = admin_log_channel.id if admin_log_channel else None
+        lang_role_id = language_setup_role.id if language_setup_role else None
 
         # Check if at least one parameter was provided
-        if onboarding_cid is None and admin_log_cid is None:
-            await interaction.followup.send(
-                "Please provide at least one channel to set (onboarding_channel or admin_log_channel).",
-                ephemeral=True
-            )
+        if all(p is None for p in [onboarding_cid, admin_log_cid, lang_role_id]):
+            await interaction.followup.send("Please provide at least one configuration option to set.", ephemeral=True)
             return
 
         try:
             await self.db.set_guild_config(
                 guild_id=guild_id,
                 onboarding_channel_id=onboarding_cid,
-                admin_log_channel_id=admin_log_cid
+                admin_log_channel_id=admin_log_cid,
+                language_setup_role_id=lang_role_id
             )
             
-            response_msg = "Guild configuration updated successfully!"
+            response_parts = ["Guild configuration updated successfully!"]
             if onboarding_channel:
-                response_msg += f"\n- Onboarding channel set to: {onboarding_channel.mention}"
+                response_parts.append(f"- Onboarding channel: {onboarding_channel.mention}")
             if admin_log_channel:
-                response_msg += f"\n- Admin log channel set to: {admin_log_channel.mention}"
-
-            await interaction.followup.send(response_msg, ephemeral=True)
+                response_parts.append(f"- Admin log channel: {admin_log_channel.mention}")
+            if language_setup_role:
+                response_parts.append(f"- Language setup role: {language_setup_role.mention}")
+            
+            await interaction.followup.send("\n".join(response_parts), ephemeral=True)
 
         except Exception as e:
             log.error(f"Error setting guild config in admin command for guild {guild_id}: {e}", exc_info=True)

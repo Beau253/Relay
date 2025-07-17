@@ -40,9 +40,10 @@ TABLE_CREATION_SQL = {
     'guild_configs': """
         CREATE TABLE IF NOT EXISTS guild_configs (
             guild_id BIGINT PRIMARY KEY,
-            onboarding_channel_id BIGINT,     -- ID of the channel for new member onboarding
-            admin_log_channel_id BIGINT,      -- ID of the channel for admin logs
-            main_language_code TEXT DEFAULT 'en' -- Main language for this specific guild
+            onboarding_channel_id BIGINT,
+            admin_log_channel_id BIGINT,
+            language_setup_role_id BIGINT,
+            main_language_code TEXT DEFAULT 'en'
         );
     """
 }
@@ -257,7 +258,7 @@ class DatabaseManager:
             log.error(f"Error fetching user preferences for user {user_id}: {e}")
             return None
 
-    async def set_guild_config(self, guild_id: int, onboarding_channel_id: Optional[int] = None, admin_log_channel_id: Optional[int] = None, main_language_code: Optional[str] = None):
+    async def set_guild_config(self, guild_id: int, onboarding_channel_id: Optional[int] = None, admin_log_channel_id: Optional[int] = None, language_setup_role_id: Optional[int] = None, main_language_code: Optional[str] = None):
         """
         Sets or updates configuration settings for a specific guild.
         Parameters can be None to not update that specific setting.
@@ -278,11 +279,15 @@ class DatabaseManager:
                     update_parts.append(f"admin_log_channel_id = ${param_idx}")
                     values.append(admin_log_channel_id)
                     param_idx += 1
+                
                 if main_language_code is not None:
                     update_parts.append(f"main_language_code = ${param_idx}")
                     values.append(main_language_code)
                     param_idx += 1
-                
+                if language_setup_role_id is not None:
+                    update_parts.append(f"language_setup_role_id = ${param_idx}")
+                    values.append(language_setup_role_id)
+                    param_idx += 1
                 if not update_parts:
                     log.warning(f"No guild config parameters provided for guild {guild_id}.")
                     return
