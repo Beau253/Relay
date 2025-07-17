@@ -478,7 +478,7 @@ class HubManagerCog(commands.Cog, name="Hub Manager"):
 
 
     # Handle_message_from_hub
-        async def handle_message_from_hub(self, message: discord.Message, origin_hub_data: asyncpg.Record, all_hubs: List[asyncpg.Record]):
+    async def handle_message_from_hub(self, message: discord.Message, origin_hub_data: asyncpg.Record, all_hubs: List[asyncpg.Record]):
         """
         Translates a message from a hub thread back to the main source channel and all other associated hubs.
         """
