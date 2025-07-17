@@ -108,16 +108,6 @@ class UsageManager:
         """Saves the current usage data to the database."""
         await self.db.set_state(USAGE_STATE_KEY, self._usage_state)
 
-    def check_limit_exceeded(self, text_length: int = 0) -> bool:
-        """
-        Checks if the TOTAL usage across all projects exceeds the safe limit.
-        Used by BotPoolManager for bot token rotation.
-        """
-        now = datetime.now(timezone.utc)
-        if self._current_month != now.strftime("%Y-%m"):
-            return False 
-        return (self.total_characters_used + text_length) > self.safe_limit
-
     async def record_usage(self, character_count: int):
         """
         Adds characters to the active project's count and triggers rotation if needed.

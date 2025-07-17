@@ -12,9 +12,6 @@ google-cloud-monitoring
 # For loading environment variables from .env file
 python-dotenv
 
-# Web framework for the keep-alive service
-Flask
-
-# Neon PostgresSQL
+# PostgreSQL database driver
 asyncpg
 

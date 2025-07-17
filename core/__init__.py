@@ -6,7 +6,6 @@
 from .db_manager import DatabaseManager
 from .translator import TextTranslator
 from .usage_manager import UsageManager
-from .bot_pool_manager import BotPoolManager, ShutdownForBotRotation
 from .gcp_pool_manager import GoogleProjectPoolManager
 from .error_handler import send_error_report
 from .version import get_current_version
@@ -19,9 +18,7 @@ __all__ = [
     "DatabaseManager",
     "TextTranslator",
     "UsageManager",
-    "BotPoolManager",
     "GoogleProjectPoolManager",
-    "ShutdownForBotRotation",
     "send_error_report",
     "get_current_version",
     "BotLocalizer"

@@ -86,49 +86,6 @@ class AdminCog(commands.Cog, name="Admin"):
         
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @app_commands.command(name="neon_status", description="Get a real-time status of the database connection.")
-    async def neon_status(self, interaction: discord.Interaction):
-        """Provides a real-time diagnostic of the database connection state."""
-        if not self.db.is_initialized or not self.db.pool:
-            await interaction.response.send_message("The database manager is not initialized.", ephemeral=True)
-            return
-
-        query = """
-            SELECT
-                state,
-                usename as user,
-                client_addr as client_address,
-                now() - state_change AS duration
-            FROM
-                pg_stat_activity
-            WHERE
-                datname = current_database();
-        """
-        try:
-            async with self.db.pool.acquire() as conn:
-                records = await conn.fetch(query)
-
-            if not records:
-                await interaction.response.send_message("No active connections found for this database.", ephemeral=True)
-                return
-
-            embed = discord.Embed(title="Neon Database Connection Status", color=discord.Color.green())
-            description = []
-            for i, record in enumerate(records):
-                description.append(f"**Connection {i+1}**")
-                description.append(f"Status: `{record['state']}`")
-                description.append(f"User: `{record['user']}`")
-                description.append(f"Client: `{record['client_address']}`")
-                description.append(f"Duration in State: `{record['duration']}`")
-                description.append("-" * 20)
-            
-            embed.description = "\n".join(description)
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-
-        except Exception as e:
-            log.error(f"Failed to fetch Neon status: {e}", exc_info=True)
-            await interaction.response.send_message(f"An error occurred while fetching DB status: `{e}`", ephemeral=True)
-
     @app_commands.command(name="set_guild_config", description="Configure channels for this guild (Admin only).")
     @app_commands.describe(
         onboarding_channel="The channel for new member onboarding.",
@@ -222,7 +179,7 @@ class AdminCog(commands.Cog, name="Admin"):
 
         # 3. Loop through each member and apply logic
         last_update_time = asyncio.get_event_loop().time()
-        
+
         for i, member in enumerate(members_to_check):
             # Non-blocking sleep to prevent hanging on one user
             await asyncio.sleep(0) 
