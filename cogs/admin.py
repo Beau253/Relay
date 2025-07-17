@@ -3,6 +3,7 @@
 import os
 import discord
 import logging
+import asyncio
 from discord.ext import commands, tasks
 from discord import app_commands
 from typing import Optional
@@ -183,6 +184,84 @@ class AdminCog(commands.Cog, name="Admin"):
         except Exception as e:
             log.error(f"Error setting guild config in admin command for guild {guild_id}: {e}", exc_info=True)
             await interaction.followup.send("An error occurred while trying to set guild configuration.", ephemeral=True)
+
+    @app_commands.command(name="sync_members", description="Syncs all members, assigning the setup role to those who haven't set a language.")
+    async def sync_members(self, interaction: discord.Interaction):
+        """
+        Manually syncs all members in the guild.
+        - Adds the language setup role to members without a language preference in the DB.
+        - Removes the language setup role from members who do have a preference set.
+        """
+        await interaction.response.defer(ephemeral=True, thinking=True)
+
+        if not interaction.guild:
+            await interaction.followup.send("This command can only be used in a server.", ephemeral=True)
+            return
+            
+        guild = interaction.guild
+
+        # 1. Get the guild's configuration from the database
+        guild_config = await self.db.get_guild_config(guild.id)
+        if not guild_config or not guild_config.get('language_setup_role_id'):
+            await interaction.followup.send("The Language Setup Role is not configured for this server. Please use `/set_guild_config` first.", ephemeral=True)
+            return
+
+        setup_role_id = guild_config['language_setup_role_id']
+        setup_role = guild.get_role(setup_role_id)
+        if not setup_role:
+            await interaction.followup.send(f"The configured setup role (ID: {setup_role_id}) could not be found. It may have been deleted.", ephemeral=True)
+            return
+
+        # 2. Initialize counters and fetch all non-bot members
+        roles_added = 0
+        roles_removed = 0
+        members_to_check = [m for m in guild.members if not m.bot]
+        total_members = len(members_to_check)
+        
+        log.info(f"Starting member sync for guild {guild.id}. Checking {total_members} members.")
+
+        # 3. Loop through each member and apply logic
+        for i, member in enumerate(members_to_check):
+            # To prevent rate limits and keep the bot responsive, add a small sleep
+            if i % 50 == 0:
+                await asyncio.sleep(1)
+
+            user_has_pref = await self.db.get_user_preferences(member.id)
+            member_has_role = setup_role in member.roles
+
+            # Case 1: Member needs the role
+            if not user_has_pref and not member_has_role:
+                try:
+                    await member.add_roles(setup_role, reason="Admin manual sync")
+                    roles_added += 1
+                except discord.Forbidden:
+                    log.warning(f"Could not add setup role to {member.display_name} ({member.id}) due to missing permissions.")
+                except Exception as e:
+                    log.error(f"Failed to add role to {member.id}: {e}")
+
+            # Case 2: Member has completed setup and should not have the role
+            elif user_has_pref and member_has_role:
+                try:
+                    await member.remove_roles(setup_role, reason="Admin manual sync - user already set language")
+                    roles_removed += 1
+                except discord.Forbidden:
+                    log.warning(f"Could not remove setup role from {member.display_name} ({member.id}) due to missing permissions.")
+                except Exception as e:
+                    log.error(f"Failed to remove role from {member.id}: {e}")
+
+        # 4. Report the results
+        log.info(f"Member sync complete for guild {guild.id}. Added: {roles_added}, Removed: {roles_removed}.")
+        
+        embed = discord.Embed(
+            title="✅ Member Sync Complete",
+            description=f"Checked **{total_members}** members.",
+            color=discord.Color.green()
+        )
+        embed.add_field(name="Setup Roles Assigned", value=str(roles_added))
+        embed.add_field(name="Setup Roles Removed", value=str(roles_removed))
+        embed.set_footer(text="Members who need to set their language now have the setup role.")
+        
+        await interaction.followup.send(embed=embed)
 
 async def setup(bot: commands.Bot):
     """The setup function for the cog."""
