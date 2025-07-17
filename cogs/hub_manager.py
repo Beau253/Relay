@@ -217,24 +217,25 @@ class HubManagerCog(commands.Cog, name="Hub Manager"):
         except (discord.Forbidden, discord.NotFound) as e:
             log.error(f"Failed to send webhook message to {channel.id}: {e}")
 
+    @staticmethod
     async def _translate_embed(self, embed: discord.Embed, target_lang: str, source_lang: Optional[str] = None) -> discord.Embed:
         """Takes an embed, translates its text, and returns a new translated embed."""
         new_embed = embed.copy()
 
         # Translate title
         if embed.title:
-            new_embed.title = await self.translator.translate_text(embed.title, target_lang, source_lang)
+            new_embed.title = await translator.translate_text(embed.title, target_lang, source_lang)
 
         # Translate description
         if embed.description:
-            new_embed.description = await self.translator.translate_text(embed.description, target_lang, source_lang)
+            new_embed.description = await translator.translate_text(embed.description, target_lang, source_lang)
 
         # Translate fields
         if embed.fields:
             new_embed.clear_fields()
             for field in embed.fields:
-                translated_name = await self.translator.translate_text(field.name, target_lang, source_lang)
-                translated_value = await self.translator.translate_text(field.value, target_lang, source_lang)
+                translated_name = await translator.translate_text(field.name, target_lang, source_lang)
+                translated_value = await translator.translate_text(field.value, target_lang, source_lang)
                 new_embed.add_field(
                     name=translated_name or field.name,
                     value=translated_value or field.value,
@@ -243,7 +244,7 @@ class HubManagerCog(commands.Cog, name="Hub Manager"):
 
         # Translate footer
         if embed.footer and embed.footer.text:
-            translated_footer = await self.translator.translate_text(embed.footer.text, target_lang, source_lang)
+            translated_footer = await translator.translate_text(embed.footer.text, target_lang, source_lang)
             new_embed.set_footer(text=translated_footer, icon_url=embed.footer.icon_url)
 
         return new_embed

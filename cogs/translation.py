@@ -2,6 +2,7 @@ import discord
 import logging
 from discord.ext import commands
 from discord import app_commands
+from cogs.hub_manager import HubManagerCog
 
 # Import our core services
 from core import DatabaseManager, TextTranslator, UsageManager, language_autocomplete, SUPPORTED_LANGUAGES
@@ -115,14 +116,30 @@ class TranslationCog(commands.Cog, name="Translation"):
         except (discord.NotFound, discord.Forbidden):
             return
 
-        if not message.content: return
+        if not message.content and not message.embeds:
+            return
 
         log.info(f"Flag reaction translation triggered by {payload.member.name} for language '{target_language}'.")
         
         async with channel.typing():
-            translated_text = await self.perform_translation(message.content, target_language)
-            if translated_text:
-                await message.reply(content=translated_text, mention_author=False)
+            translated_text = ""
+            if message.content:
+                translated_text = await self.perform_translation(message.content, target_language)
+
+            translated_embeds = []
+            if message.embeds:
+                for embed in message.embeds:
+                    # Call the static helper method from the HubManagerCog
+                    translated_embed = await HubManagerCog._translate_embed(self.translator, embed, target_language)
+                    translated_embeds.append(translated_embed)
+            
+            # Send the reply with both text and embeds
+            # The API handles cases where one or the other is empty gracefully
+            await message.reply(
+                content=translated_text,
+                embeds=translated_embeds,
+                mention_author=False
+            )
 
     async def translate_message_callback(self, interaction: discord.Interaction, message: discord.Message):
         """The actual logic for the 'Translate Message' context menu."""
