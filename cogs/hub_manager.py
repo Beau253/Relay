@@ -542,22 +542,22 @@ class HubManagerCog(commands.Cog, name="Hub Manager"):
             if other_content:
                 await self._send_webhook_message(other_thread, other_content, message.author)
 
-    def build_final_message(self, flag: str, translated_text: Optional[str], attachments: str, fallback_text: str) -> str:
-        """Helper to construct the final message string."""
-        content_parts = []
-        
-        # Use the translated text if available, otherwise use the fallback
-        text_to_show = translated_text if translated_text is not None else fallback_text
-        
-        if text_to_show:
-            content_parts.append(text_to_show)
-        if attachments:
-            content_parts.append(attachments)
-            
-        if not content_parts:
-            return ""
-            
-        return f"{flag} " + "\n".join(content_parts)
+            def build_final_message(self, flag: str, translated_text: Optional[str], attachments: str, fallback_text: str) -> str:
+                """Helper to construct the final message string."""
+                content_parts = []
+                
+                # Use the translated text if available, otherwise use the fallback
+                text_to_show = translated_text if translated_text is not None else fallback_text
+                
+                if text_to_show:
+                    content_parts.append(text_to_show)
+                if attachments:
+                    content_parts.append(attachments)
+                    
+                if not content_parts:
+                    return ""
+                    
+                return f"{flag} " + "\n".join(content_parts)
 
             # This logic now correctly handles messages with ONLY attachments.
             if attachment_links_str:
