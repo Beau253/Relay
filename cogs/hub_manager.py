@@ -202,7 +202,7 @@ class HubManagerCog(commands.Cog, name="Hub Manager"):
             log.error(f"Missing 'Manage Webhooks' permission in channel #{target_channel.name}")
             return None
 
-    async def _send_webhook_message(self, channel: discord.TextChannel | discord.Thread, content: str, author: discord.Member | discord.User, custom_username: Optional[str] = None):
+    async def _send_webhook_message(self, channel: discord.TextChannel | discord.Thread, content: str, author: discord.Member | discord.User, custom_username: Optional[str] = None, embeds: Optional[List[discord.Embed]] = None):
         webhook = await self._get_webhook(channel)
         if not webhook: return
         
@@ -210,11 +210,43 @@ class HubManagerCog(commands.Cog, name="Hub Manager"):
 
         try:
             if isinstance(channel, discord.Thread):
-                await webhook.send(content=content, username=username_to_use, avatar_url=author.display_avatar.url, thread=channel)
+                await webhook.send(content=content, username=username_to_use, avatar_url=author.display_avatar.url, thread=channel, embeds=embeds)
             else:
-                await webhook.send(content=content, username=username_to_use, avatar_url=author.display_avatar.url)
+                # FIX: Added embeds=embeds parameter
+                await webhook.send(content=content, username=username_to_use, avatar_url=author.display_avatar.url, embeds=embeds)
         except (discord.Forbidden, discord.NotFound) as e:
             log.error(f"Failed to send webhook message to {channel.id}: {e}")
+
+    async def _translate_embed(self, embed: discord.Embed, target_lang: str, source_lang: Optional[str] = None) -> discord.Embed:
+        """Takes an embed, translates its text, and returns a new translated embed."""
+        new_embed = embed.copy()
+
+        # Translate title
+        if embed.title:
+            new_embed.title = await self.translator.translate_text(embed.title, target_lang, source_lang)
+
+        # Translate description
+        if embed.description:
+            new_embed.description = await self.translator.translate_text(embed.description, target_lang, source_lang)
+
+        # Translate fields
+        if embed.fields:
+            new_embed.clear_fields()
+            for field in embed.fields:
+                translated_name = await self.translator.translate_text(field.name, target_lang, source_lang)
+                translated_value = await self.translator.translate_text(field.value, target_lang, source_lang)
+                new_embed.add_field(
+                    name=translated_name or field.name,
+                    value=translated_value or field.value,
+                    inline=field.inline
+                )
+
+        # Translate footer
+        if embed.footer and embed.footer.text:
+            translated_footer = await self.translator.translate_text(embed.footer.text, target_lang, source_lang)
+            new_embed.set_footer(text=translated_footer, icon_url=embed.footer.icon_url)
+
+        return new_embed
 
     # --- HUB LIFECYCLE TASKS ---
 
@@ -390,7 +422,7 @@ class HubManagerCog(commands.Cog, name="Hub Manager"):
             return
         
         # This remains to ignore empty messages or DMs.
-        if not (message.content or message.attachments) or not message.guild:
+        if not (message.content or message.attachments or message.embeds) or not message.guild:
             return
         
         # --- HUB -> MAIN/OTHER HUBS ---
@@ -408,8 +440,6 @@ class HubManagerCog(commands.Cog, name="Hub Manager"):
             if active_hubs:
                 await self.handle_message_from_source(message, active_hubs)
 
-
-    # Handle_message_from_source (formerly relay_to_hubs)
     async def handle_message_from_source(self, message: discord.Message, hubs: List[asyncpg.Record]):
         """
         Translates a message from a source channel into all associated hub threads.
@@ -461,6 +491,13 @@ class HubManagerCog(commands.Cog, name="Hub Manager"):
                         # We continue here so we don't send a "Translation Failed" message
                         continue
             
+            translated_embeds = []
+            if message.embeds:
+                for embed in message.embeds:
+                    # Use our new helper to translate the embed
+                    translated_embed = await self._translate_embed(embed, target_lang, source_lang=current_guild_main_lang)
+                    translated_embeds.append(translated_embed)
+
             # Construct the final message content
             final_content_parts = []
             if translated_text:
@@ -468,13 +505,13 @@ class HubManagerCog(commands.Cog, name="Hub Manager"):
             if attachment_links_str:
                 final_content_parts.append(attachment_links_str)
 
-            if not final_content_parts:
-                log.info(f"No content (text or attachments) to forward from source channel {message.channel.id} to hub {thread.id}.")
+            if not final_content_parts and not translated_embeds:
+                log.info(f"No content (text, attachments, or embeds) to forward from source channel {message.channel.id} to hub {thread.id}.")
                 continue
 
             final_content = f"{current_source_flag_emoji} " + "\n".join(final_content_parts)
             
-            await self._send_webhook_message(thread, final_content, message.author)
+            await self._send_webhook_message(thread, final_content, message.author, embeds=translated_embeds)
 
 
     # Handle_message_from_hub
@@ -505,25 +542,41 @@ class HubManagerCog(commands.Cog, name="Hub Manager"):
         
         # --- Translate once for each target language needed ---
         translations = {}
-        if text_to_translate:
-            # Create a set of unique target languages to avoid redundant API calls
-            target_langs = {hub['language_code'] for hub in all_hubs}
-            target_langs.add(current_guild_main_lang)
-            
-            for lang in target_langs:
-                if lang != origin_lang_code: # No need to translate to its own language
-                    translations[lang] = await self.translator.translate_text(text_to_translate, lang, source_language=origin_lang_code)
+        embed_translations = {} # Dictionary to hold translated embeds for each language
+        
+        # Create a set of unique target languages to avoid redundant API calls
+        target_langs = {hub['language_code'] for hub in all_hubs}
+        target_langs.add(current_guild_main_lang)
 
+        for lang in target_langs:
+            if lang == origin_lang_code: continue # No need to translate to its own language
+            
+            # Translate text for the current 'lang'
+            if text_to_translate:
+                translations[lang] = await self.translator.translate_text(text_to_translate, lang, source_language=origin_lang_code)
+
+            # Translate embeds for the current 'lang'
+            if message.embeds:
+                embed_translations[lang] = []
+                for embed in message.embeds:
+                    translated_embed = await self._translate_embed(embed, lang, source_language=origin_lang_code)
+                    embed_translations[lang].append(translated_embed)
+
+        # Record usage for all successful text translations at once
+        if text_to_translate:
             successful_translations = sum(1 for t in translations.values() if t is not None)
             if successful_translations > 0:
                 await self.usage.record_usage(len(text_to_translate) * successful_translations)
 
         # --- 1. Send to Main Source Channel ---
         log.info(f"Relaying message from hub {message.channel.id} to source channel {source_channel_id} (target: {current_guild_main_lang})")
+        
         main_text = translations.get(current_guild_main_lang)
+        main_embeds = embed_translations.get(current_guild_main_lang)
         main_content = self.build_final_message(origin_flag_emoji, main_text, attachment_links_str, f"[Translation Failed] {text_to_translate}" if text_to_translate else "")
-        if main_content:
-            await self._send_webhook_message(source_channel, main_content, message.author)
+        
+        if main_content or main_embeds:
+            await self._send_webhook_message(source_channel, main_content, message.author, embeds=main_embeds)
 
         # --- 2. Send to ALL OTHER Hubs ---
         for other_hub_record in all_hubs:
@@ -538,10 +591,11 @@ class HubManagerCog(commands.Cog, name="Hub Manager"):
             log.info(f"Relaying message from hub {message.channel.id} to other hub {other_thread.id} (target: {target_lang_code})")
             
             other_text = translations.get(target_lang_code)
+            other_embeds = embed_translations.get(target_lang_code)
             other_content = self.build_final_message(origin_flag_emoji, other_text, attachment_links_str, f"[Translation Failed] {text_to_translate}" if text_to_translate else "")
             
-            if other_content:
-                await self._send_webhook_message(other_thread, other_content, message.author)
+            if other_content or other_embeds:
+                await self._send_webhook_message(other_thread, other_content, message.author, embeds=other_embeds)
 
     # --- FIX: Place the build_final_message function here, at the correct class level ---
     def build_final_message(self, flag: str, translated_text: Optional[str], attachments: str, fallback_text: str) -> str:
