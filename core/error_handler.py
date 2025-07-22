@@ -15,6 +15,8 @@ log = logging.getLogger(__name__)
 # Fetch the bot's operating mode from the environment variables.
 BOT_MODE = os.getenv('BOT_MODE', 'development')
 
+OWNER_ID = os.getenv('OWNER_ID')
+
 async def send_error_report(interaction: discord.Interaction, error: AppCommandError):
     """
     Handles slash command errors by sending a user-friendly message (generic in production,
@@ -79,6 +81,11 @@ async def send_error_report(interaction: discord.Interaction, error: AppCommandE
                             error_embed.add_field(name="Traceback", value=f"```py\n{traceback_str}\n```", inline=False)
                             error_embed.set_footer(text="Full traceback also in bot console logs.")
 
+                        ping_content = f"<@{OWNER_ID}>" if OWNER_ID else ""
+
+                        # MODIFIED: Send the ping content along with the embed
+                        await admin_log_channel.send(content=ping_content, embed=error_embed)
+                        
                         await admin_log_channel.send(embed=error_embed)
                         log.info(f"Error report sent to admin log channel {admin_log_channel_id} in guild {interaction.guild.id}.")
                     else:
