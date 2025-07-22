@@ -108,6 +108,19 @@ class UsageManager:
         """Saves the current usage data to the database."""
         await self.db.set_state(USAGE_STATE_KEY, self._usage_state)
 
+    def check_limit_exceeded(self, text_length: int = 0) -> bool:
+        """
+        Checks if the TOTAL usage across all projects exceeds the safe limit.
+        Used as a safeguard before making API calls.
+        """
+        now = datetime.now(timezone.utc)
+        # Ensure we're checking against the current month's usage
+        if self._current_month != now.strftime("%Y-%m"):
+            # If a new month has started but the state hasn't been reset, assume it's safe.
+            # The next record_usage or sync will handle the reset.
+            return False 
+        return (self.total_characters_used + text_length) > self.safe_limit
+
     async def record_usage(self, character_count: int):
         """
         Adds characters to the active project's count and triggers rotation if needed.
