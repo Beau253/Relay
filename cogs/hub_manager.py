@@ -292,7 +292,8 @@ class HubManagerCog(commands.Cog, name="Hub Manager"):
                     await thread.edit(archived=True, locked=True)
                 await self.db.archive_hub(thread_id)
             except discord.NotFound:
-                log.warning(f"Could not find expired thread {thread_id} to archive. Marking as archived anyway.")
+                log.warning(f"Could not find expired thread {thread_id}. Deleting record from database.")
+                await self.db.delete_hub(thread_id)
             except Exception as e:
                 log.error(f"Error during hub archival for thread {thread_id}: {e}", exc_info=True)
     
