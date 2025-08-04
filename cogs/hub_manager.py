@@ -574,7 +574,8 @@ class HubManagerCog(commands.Cog, name="Hub Manager"):
         log.info(f"Relaying message from hub {message.channel.id} to source channel {source_channel_id} (target: {current_guild_main_lang})")
         
         main_text = translations.get(current_guild_main_lang)
-        main_embeds = embed_translations.get(current_guild_main_lang)
+        # MODIFIED: Use `or []` to provide an empty list as a fallback
+        main_embeds = embed_translations.get(current_guild_main_lang) or []
         main_content = self.build_final_message(origin_flag_emoji, main_text, attachment_links_str, f"[Translation Failed] {text_to_translate}" if text_to_translate else "")
         
         if main_content or main_embeds:
@@ -593,7 +594,8 @@ class HubManagerCog(commands.Cog, name="Hub Manager"):
             log.info(f"Relaying message from hub {message.channel.id} to other hub {other_thread.id} (target: {target_lang_code})")
             
             other_text = translations.get(target_lang_code)
-            other_embeds = embed_translations.get(target_lang_code)
+            # MODIFIED: Use `or []` to provide an empty list as a fallback
+            other_embeds = embed_translations.get(target_lang_code) or []
             other_content = self.build_final_message(origin_flag_emoji, other_text, attachment_links_str, f"[Translation Failed] {text_to_translate}" if text_to_translate else "")
             
             if other_content or other_embeds:
