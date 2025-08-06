@@ -32,7 +32,7 @@ class TranslationCog(commands.Cog, name="Translation"):
     def _load_flag_data(self):
         """
         Loads flag data from flags.json and builds a direct map
-        from the emoji's name (e.g., 'england', 'flag_au') to the language code.
+        from the emoji's name (e.g., 'england') to the language code.
         """
         try:
             script_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -49,6 +49,16 @@ class TranslationCog(commands.Cog, name="Translation"):
                     self.emoji_name_to_language_map[key] = languages[0]
             
             log.info(f"Successfully loaded {len(self.emoji_name_to_language_map)} emoji name-to-language mappings.")
+            # --- DEBUG LOGGING ---
+            if "england" in self.emoji_name_to_language_map:
+                log.info("DEBUG - 'england' key was successfully loaded into the map.")
+            else:
+                log.warning("DEBUG - 'england' key was NOT found in flags.json or failed to load.")
+            if "flag_au" in self.emoji_name_to_language_map:
+                log.info("DEBUG - 'flag_au' key was successfully loaded into the map.")
+            else:
+                log.warning("DEBUG - 'flag_au' key was NOT found in flags.json or failed to load.")
+            # --- END DEBUG LOGGING ---
 
         except FileNotFoundError:
             log.error("Could not find data/flags.json. Flag reaction translations will not work.")
@@ -124,24 +134,31 @@ class TranslationCog(commands.Cog, name="Translation"):
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
+        # --- DEBUG LOGGING ---
+        log.info(f"DEBUG - Reaction received. Emoji name: '{payload.emoji.name}'")
+        
         if payload.user_id == self.bot.user.id or (payload.member and payload.member.bot):
+            log.info("DEBUG - Reaction ignored: Sent by bot or is a DM.")
             return
 
-        # THIS IS THE NEW, SIMPLER LOGIC:
-        # We get the emoji's name (e.g., "england", "flag_au") and look it up directly.
-        # This works for both standard and custom-named emojis in the JSON.
         target_language = self.emoji_name_to_language_map.get(payload.emoji.name)
         if not target_language:
+            log.info(f"DEBUG - Reaction ignored: Emoji name '{payload.emoji.name}' not found in the language map.")
             return
+        
+        log.info(f"DEBUG - Found matching language '{target_language}' for emoji name '{payload.emoji.name}'.")
+        # --- END DEBUG LOGGING ---
 
         try:
             channel = self.bot.get_channel(payload.channel_id)
             if not isinstance(channel, (discord.TextChannel, discord.Thread)): return
             message = await channel.fetch_message(payload.message_id)
         except (discord.NotFound, discord.Forbidden):
+            log.error(f"DEBUG - Could not fetch message {payload.message_id} for reaction.")
             return
 
         if not message.content and not message.embeds:
+            log.info("DEBUG - Reaction ignored: Target message has no content to translate.")
             return
 
         log.info(f"Flag reaction translation triggered by {payload.member.display_name if payload.member else 'Unknown User'} for language '{target_language}'.")
