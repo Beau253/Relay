@@ -12,6 +12,9 @@ from core.utils import country_code_to_flag
 
 log = logging.getLogger(__name__)
 
+# --- Special Cases for Non-ISO Standard Flags ---
+# This dictionary maps the 'countryCode' from flags.json to the correct Unicode character
+# for flags that cannot be generated from a simple two-letter code.
 SPECIAL_CASE_FLAGS = {
     "GB-ENG": "🏴󠁧󠁢󠁥󠁮󠁧󠁿",  # England
     "GB-SCT": "🏴󠁧󠁢󠁳󠁣󠁴󠁿",  # Scotland
@@ -19,6 +22,7 @@ SPECIAL_CASE_FLAGS = {
     "EU": "🇪🇺",          # European Union
     "UN": "🇺🇳"           # United Nations
 }
+
 
 @app_commands.guild_only()
 class TranslationCog(commands.Cog, name="Translation"):
@@ -41,8 +45,6 @@ class TranslationCog(commands.Cog, name="Translation"):
     def _load_flag_data(self):
         """Loads flag data from flags.json and builds the emoji-to-language mapping."""
         try:
-            # Construct the path to the data file
-            # Assumes the 'data' directory is at the root of the project
             script_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             file_path = os.path.join(script_dir, 'data', 'flags.json')
             
@@ -53,11 +55,13 @@ class TranslationCog(commands.Cog, name="Translation"):
                 country_code = data.get("countryCode")
                 languages = data.get("languages")
                 
-                # We need a valid country code and at least one language
                 if country_code and languages:
-                    emoji = country_code_to_flag(country_code)
-                    # Use the first language in the list as the target
-                    self.emoji_to_language_map[emoji] = languages[0]
+                    # THE FIX: Check for a special case first, then fall back to the generator.
+                    emoji = SPECIAL_CASE_FLAGS.get(country_code) or country_code_to_flag(country_code)
+                    
+                    # Ensure we have a valid emoji before adding
+                    if emoji and (emoji != '🏳️' or country_code in SPECIAL_CASE_FLAGS):
+                         self.emoji_to_language_map[emoji] = languages[0]
             
             log.info(f"Successfully loaded {len(self.emoji_to_language_map)} flag-to-language mappings.")
 
@@ -83,7 +87,9 @@ class TranslationCog(commands.Cog, name="Translation"):
         translation_result = await self.translator.translate_text(original_message_content, target_lang)
 
         if translation_result and translation_result.get('translated_text'):
-            await self.usage.record_usage(len(original_message_content))
+            # Only record usage for successful translations
+            if translation_result.get("detected_language_code") != "error":
+                await self.usage.record_usage(len(original_message_content))
         
         return translation_result
 
@@ -116,11 +122,9 @@ class TranslationCog(commands.Cog, name="Translation"):
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         """Listener for the auto-translate feature."""
-        # Ignore messages from bots, webhooks, DMs, or with no content
         if message.author.bot or message.webhook_id or not message.guild or not message.content:
             return
 
-        # Check if the channel is configured for auto-translation
         config = await self.db.get_auto_translate_config(message.channel.id)
         if not config:
             return
@@ -129,7 +133,6 @@ class TranslationCog(commands.Cog, name="Translation"):
         
         target_lang = config['target_language_code']
         
-        # Perform translation and get detected language
         translation_result = await self.perform_translation(message.content, target_lang)
 
         if not translation_result:
@@ -139,14 +142,12 @@ class TranslationCog(commands.Cog, name="Translation"):
         translated_text = translation_result.get('translated_text')
         detected_language = translation_result.get('detected_language_code')
 
-        # Do not translate if the detected language is the same as the target
-        if detected_language and detected_language.split('-')[0] == target_lang.split('-')[0]:
-            return
-            
-        if not translated_text:
+        if not translated_text or not detected_language or detected_language == "error":
             return
 
-        # Post as a reply
+        if detected_language.split('-')[0] == target_lang.split('-')[0]:
+            return
+            
         await message.reply(
             content=translated_text,
             mention_author=False
@@ -159,7 +160,6 @@ class TranslationCog(commands.Cog, name="Translation"):
         if payload.user_id == self.bot.user.id or (payload.member and payload.member.bot):
             return
 
-        # Use the dynamically loaded map instead of the hardcoded one
         target_language = self.emoji_to_language_map.get(str(payload.emoji))
         if not target_language:
             return
@@ -187,7 +187,7 @@ class TranslationCog(commands.Cog, name="Translation"):
             if message.embeds:
                 for embed in message.embeds:
                     translated_embed = await HubManagerCog._translate_embed(self.translator, embed, target_language)
-                    translated_embeds.append(translated_embed)
+                    translated_embeds.append(translated_embeds)
             
             if translated_text or translated_embeds:
                 await message.reply(
