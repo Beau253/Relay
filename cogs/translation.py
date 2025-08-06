@@ -5,7 +5,7 @@ import json
 from discord.ext import commands
 from discord import app_commands
 from cogs.hub_manager import HubManagerCog
-from langdetect import detect, LangDetectException # <-- IMPORT THE NEW LIBRARY
+from langdetect import detect, LangDetectException # <-- Already imported
 
 # Import our core services and utilities
 from core import DatabaseManager, TextTranslator, UsageManager, language_autocomplete, SUPPORTED_LANGUAGES
@@ -113,38 +113,25 @@ class TranslationCog(commands.Cog, name="Translation"):
 
         target_lang = config['target_language_code']
 
-        # --- NEW OFFLINE PRE-FILTER ---
-        # This block runs before any API calls to save our quota.
+        # --- OFFLINE PRE-FILTER ---
         try:
-            # 1. Detect language locally and quickly.
             detected_lang = detect(message.content)
-            
-            # 2. Compare base languages (e.g., 'en' vs 'en-US').
             if detected_lang.split('-')[0] == target_lang.split('-')[0]:
                 log.info(f"Auto-translate skipped: Local pre-filter detected '{detected_lang}', which matches target '{target_lang}'. No API call made.")
-                return # Stop processing if the language is already correct.
-
+                return
         except LangDetectException:
-            # This happens if the message is too short, has only numbers, emojis, etc.
-            # In this case, we fall back to the powerful Google API.
-            log.warning("Local language detection failed. Falling back to Google API for full check.")
-            pass # Continue to the API call below.
+            log.warning("Local language detection failed for auto-translate. Falling back to Google API for full check.")
+            pass
         # --- END OF PRE-FILTER ---
 
-        # If the pre-filter didn't stop, we proceed with the API call.
         translation_result = await self.perform_translation(message.content, target_lang)
-
         if not translation_result:
             return
 
         translated_text = translation_result.get('translated_text')
         detected_language = translation_result.get('detected_language_code')
 
-        if not translated_text or not detected_language or detected_language == "error":
-            return
-        
-        # This check is now a fallback for the pre-filter, but it is still useful.
-        if detected_language.split('-')[0] == target_lang.split('-')[0]:
+        if not translated_text or not detected_language or detected_language == "error" or detected_language.split('-')[0] == target_lang.split('-')[0]:
             return
             
         await message.reply(content=translated_text, mention_author=False)
@@ -167,6 +154,18 @@ class TranslationCog(commands.Cog, name="Translation"):
 
         if not message.content and not message.embeds:
             return
+            
+        # --- NEW OFFLINE PRE-FILTER FOR REACTIONS ---
+        if message.content: # Only run pre-filter if there is text content
+            try:
+                detected_lang = detect(message.content)
+                if detected_lang.split('-')[0] == target_language.split('-')[0]:
+                    log.info(f"Flag reaction skipped: Local pre-filter detected '{detected_lang}', matching target '{target_language}'. No API call made.")
+                    return # Silently stop if the language is already correct.
+            except LangDetectException:
+                log.warning("Local language detection failed for flag reaction. Falling back to Google API.")
+                pass # Fallback to Google API for complex cases
+        # --- END OF PRE-FILTER ---
 
         log.info(f"Flag reaction translation triggered by {payload.member.display_name if payload.member else 'Unknown User'} for language '{target_language}'.")
         
