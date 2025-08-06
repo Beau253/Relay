@@ -5,6 +5,7 @@ import json
 from discord.ext import commands
 from discord import app_commands
 from cogs.hub_manager import HubManagerCog
+from langdetect import detect, LangDetectException # <-- IMPORT THE NEW LIBRARY
 
 # Import our core services and utilities
 from core import DatabaseManager, TextTranslator, UsageManager, language_autocomplete, SUPPORTED_LANGUAGES
@@ -42,7 +43,7 @@ class TranslationCog(commands.Cog, name="Translation"):
     def _load_flag_data(self):
         """
         Loads flag data from flags.json and builds a map from the
-        actual Unicode emoji character to the language code. THIS IS THE CORRECT WAY.
+        actual Unicode emoji character to the language code.
         """
         try:
             script_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -56,17 +57,12 @@ class TranslationCog(commands.Cog, name="Translation"):
                 languages = data.get("languages")
                 
                 if country_code and languages:
-                    # Generate the emoji: check for special cases first, then use the standard generator.
                     emoji = SPECIAL_CASE_FLAGS.get(country_code) or country_code_to_flag(country_code)
                     
-                    # Ensure we have a valid emoji and it's not the default white flag (unless it's a special case).
                     if emoji and (emoji != '🏳️' or country_code in SPECIAL_CASE_FLAGS):
-                         # Store the FIRST language code as a STRING, not a list.
                          self.emoji_to_language_map[emoji] = languages[0]
             
             log.info(f"Successfully loaded {len(self.emoji_to_language_map)} emoji-to-language mappings.")
-            log.info(f"DEBUG - England flag '🏴󠁧󠁢󠁥󠁮󠁧󠁿' in map: {'🏴󠁧󠁢󠁥󠁮󠁧󠁿' in self.emoji_to_language_map}")
-            log.info(f"DEBUG - Australia flag '🇦🇺' in map: {'🇦🇺' in self.emoji_to_language_map}")
 
         except FileNotFoundError:
             log.error("Could not find data/flags.json. Flag reaction translations will not work.")
@@ -107,6 +103,7 @@ class TranslationCog(commands.Cog, name="Translation"):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
+        """Listener for the auto-translate feature."""
         if message.author.bot or message.webhook_id or not message.guild or not message.content:
             return
 
@@ -115,6 +112,26 @@ class TranslationCog(commands.Cog, name="Translation"):
             return
 
         target_lang = config['target_language_code']
+
+        # --- NEW OFFLINE PRE-FILTER ---
+        # This block runs before any API calls to save our quota.
+        try:
+            # 1. Detect language locally and quickly.
+            detected_lang = detect(message.content)
+            
+            # 2. Compare base languages (e.g., 'en' vs 'en-US').
+            if detected_lang.split('-')[0] == target_lang.split('-')[0]:
+                log.info(f"Auto-translate skipped: Local pre-filter detected '{detected_lang}', which matches target '{target_lang}'. No API call made.")
+                return # Stop processing if the language is already correct.
+
+        except LangDetectException:
+            # This happens if the message is too short, has only numbers, emojis, etc.
+            # In this case, we fall back to the powerful Google API.
+            log.warning("Local language detection failed. Falling back to Google API for full check.")
+            pass # Continue to the API call below.
+        # --- END OF PRE-FILTER ---
+
+        # If the pre-filter didn't stop, we proceed with the API call.
         translation_result = await self.perform_translation(message.content, target_lang)
 
         if not translation_result:
@@ -123,7 +140,11 @@ class TranslationCog(commands.Cog, name="Translation"):
         translated_text = translation_result.get('translated_text')
         detected_language = translation_result.get('detected_language_code')
 
-        if not translated_text or not detected_language or detected_language == "error" or detected_language.split('-')[0] == target_lang.split('-')[0]:
+        if not translated_text or not detected_language or detected_language == "error":
+            return
+        
+        # This check is now a fallback for the pre-filter, but it is still useful.
+        if detected_language.split('-')[0] == target_lang.split('-')[0]:
             return
             
         await message.reply(content=translated_text, mention_author=False)
@@ -133,7 +154,6 @@ class TranslationCog(commands.Cog, name="Translation"):
         if payload.user_id == self.bot.user.id or (payload.member and payload.member.bot):
             return
 
-        # Use the actual Unicode character from the emoji as the key.
         target_language = self.emoji_to_language_map.get(str(payload.emoji))
         if not target_language:
             return
