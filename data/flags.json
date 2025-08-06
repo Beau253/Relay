@@ -1315,8 +1315,8 @@
     "languages": []
   },
   ":england:": {
-    "countryCode": "EN",
-    "countryName": "Englnd",
+    "countryCode": "GB-ENG",
+    "countryName": "England",
     "languages": ["en"]
   }
 }
