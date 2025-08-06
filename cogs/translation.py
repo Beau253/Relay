@@ -12,6 +12,14 @@ from core.utils import country_code_to_flag
 
 log = logging.getLogger(__name__)
 
+SPECIAL_CASE_FLAGS = {
+    "GB-ENG": "🏴󠁧󠁢󠁥󠁮󠁧󠁿",  # England
+    "GB-SCT": "🏴󠁧󠁢󠁳󠁣󠁴󠁿",  # Scotland
+    "GB-WLS": "🏴󠁧󠁢󠁷󠁬󠁳󠁿",  # Wales
+    "EU": "🇪🇺",          # European Union
+    "UN": "🇺🇳"           # United Nations
+}
+
 @app_commands.guild_only()
 class TranslationCog(commands.Cog, name="Translation"):
     def __init__(self, bot: commands.Bot, db_manager: DatabaseManager, translator: TextTranslator, usage_manager: UsageManager):
