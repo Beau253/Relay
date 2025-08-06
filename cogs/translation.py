@@ -55,9 +55,12 @@ class TranslationCog(commands.Cog, name="Translation"):
                 
                 # We need a valid country code and at least one language
                 if country_code and languages:
-                    emoji = country_code_to_flag(country_code)
-                    # Use the first language in the list as the target
-                    self.emoji_to_language_map[emoji] = languages[0]
+                # Check for a special case first, then fall back to the generator.
+                    emoji = SPECIAL_CASE_FLAGS.get(country_code) or country_code_to_flag(country_code)
+                
+                # Ensure we have a valid emoji before adding it to the map
+                    if emoji and (emoji != '🏳️' or country_code in SPECIAL_CASE_FLAGS):
+                        self.emoji_to_language_map[emoji] = languages
             
             log.info(f"Successfully loaded {len(self.emoji_to_language_map)} flag-to-language mappings.")
 
