@@ -8,17 +8,8 @@ from cogs.hub_manager import HubManagerCog
 
 # Import our core services and utilities
 from core import DatabaseManager, TextTranslator, UsageManager, language_autocomplete, SUPPORTED_LANGUAGES
-from core.utils import country_code_to_flag
 
 log = logging.getLogger(__name__)
-
-SPECIAL_CASE_FLAGS = {
-    "GB-ENG": "🏴󠁧󠁢󠁥󠁮󠁧󠁿",  # England
-    "GB-SCT": "🏴󠁧󠁢󠁳󠁣󠁴󠁿",  # Scotland
-    "GB-WLS": "🏴󠁧󠁢󠁷󠁬󠁳󠁿",  # Wales
-    "EU": "🇪🇺",          # European Union
-    "UN": "🇺🇳"           # United Nations
-}
 
 @app_commands.guild_only()
 class TranslationCog(commands.Cog, name="Translation"):
@@ -27,7 +18,7 @@ class TranslationCog(commands.Cog, name="Translation"):
         self.db = db_manager
         self.translator = translator
         self.usage = usage_manager
-        self.emoji_to_language_map: dict[str, str] = {}
+        self.emoji_name_to_language_map: dict[str, str] = {}
         self._load_flag_data()
 
         log.info("[TRANSLATION_COG] Initializing and adding 'Translate Message' context menu...")
@@ -39,30 +30,25 @@ class TranslationCog(commands.Cog, name="Translation"):
         log.info("[TRANSLATION_COG] 'Translate Message' context menu added to tree.")
 
     def _load_flag_data(self):
-        """Loads flag data from flags.json and builds the emoji-to-language mapping."""
+        """
+        Loads flag data from flags.json and builds a direct map
+        from the emoji's name (e.g., 'england') to the language code.
+        """
         try:
-            # Construct the path to the data file
-            # Assumes the 'data' directory is at the root of the project
             script_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             file_path = os.path.join(script_dir, 'data', 'flags.json')
             
             with open(file_path, 'r', encoding='utf-8') as f:
                 flag_data = json.load(f)
 
-            for _, data in flag_data.items():
-                country_code = data.get("countryCode")
+            for key, data in flag_data.items():
                 languages = data.get("languages")
-                
-                # We need a valid country code and at least one language
-                if country_code and languages:
-                # Check for a special case first, then fall back to the generator.
-                    emoji = SPECIAL_CASE_FLAGS.get(country_code) or country_code_to_flag(country_code)
-                
-                # Ensure we have a valid emoji before adding it to the map
-                    if emoji and (emoji != '🏳️' or country_code in SPECIAL_CASE_FLAGS):
-                        self.emoji_to_language_map[emoji] = languages
+                if languages:
+                    # The key is now the emoji name (e.g., "england", "flag_au")
+                    # We take the first language from the list.
+                    self.emoji_name_to_language_map[key] = languages[0]
             
-            log.info(f"Successfully loaded {len(self.emoji_to_language_map)} flag-to-language mappings.")
+            log.info(f"Successfully loaded {len(self.emoji_name_to_language_map)} emoji name-to-language mappings.")
 
         except FileNotFoundError:
             log.error("Could not find data/flags.json. Flag reaction translations will not work.")
@@ -86,7 +72,8 @@ class TranslationCog(commands.Cog, name="Translation"):
         translation_result = await self.translator.translate_text(original_message_content, target_lang)
 
         if translation_result and translation_result.get('translated_text'):
-            await self.usage.record_usage(len(original_message_content))
+            if translation_result.get("detected_language_code") != "error":
+                await self.usage.record_usage(len(original_message_content))
         
         return translation_result
 
@@ -95,75 +82,51 @@ class TranslationCog(commands.Cog, name="Translation"):
     @app_commands.describe(language="The language you want messages to be translated into for you.")
     async def set_language(self, interaction: discord.Interaction, language: str):
         if language not in SUPPORTED_LANGUAGES:
-            await interaction.response.send_message(
-                f"Sorry, `{language}` is not a supported language code. Please choose from the list.",
-                ephemeral=True
-            )
+            await interaction.response.send_message(f"Sorry, `{language}` is not a supported language code.", ephemeral=True)
             return
 
         try:
             await self.db.set_user_preferences(user_id=interaction.user.id, user_locale=language)
             log.info(f"User {interaction.user.id} manually set their language to '{language}'.")
-            
-            await interaction.response.send_message(
-                f"Your preferred language has been set to **{SUPPORTED_LANGUAGES[language]}** (`{language}`).",
-                ephemeral=True
-            )
+            await interaction.response.send_message(f"Your preferred language has been set to **{SUPPORTED_LANGUAGES[language]}** (`{language}`).", ephemeral=True)
         except Exception as e:
             log.error(f"Failed to set language for user {interaction.user.id}: {e}", exc_info=True)
-            await interaction.response.send_message(
-                "An error occurred while saving your preference. Please try again later.",
-                ephemeral=True
-            )
+            await interaction.response.send_message("An error occurred while saving your preference.", ephemeral=True)
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         """Listener for the auto-translate feature."""
-        # Ignore messages from bots, webhooks, DMs, or with no content
         if message.author.bot or message.webhook_id or not message.guild or not message.content:
             return
 
-        # Check if the channel is configured for auto-translation
         config = await self.db.get_auto_translate_config(message.channel.id)
         if not config:
             return
 
-        log.info(f"Auto-translate triggered in channel {message.channel.id} for message {message.id}")
-        
         target_lang = config['target_language_code']
-        
-        # Perform translation and get detected language
         translation_result = await self.perform_translation(message.content, target_lang)
 
         if not translation_result:
-            log.warning(f"Auto-translation failed for message {message.id}.")
             return
 
         translated_text = translation_result.get('translated_text')
         detected_language = translation_result.get('detected_language_code')
 
-        # Do not translate if the detected language is the same as the target
-        if detected_language and detected_language.split('-')[0] == target_lang.split('-')[0]:
+        if not translated_text or not detected_language or detected_language == "error":
+            return
+
+        if detected_language.split('-')[0] == target_lang.split('-')[0]:
             return
             
-        if not translated_text:
-            return
-
-        # Post as a reply
-        await message.reply(
-            content=translated_text,
-            mention_author=False
-        )
-
+        await message.reply(content=translated_text, mention_author=False)
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
-        log.info(f"DEBUG: Received reaction. Emoji is: '{str(payload.emoji)}'. Map contains England flag?: {'🏴󠁧󠁢󠁥󠁮󠁧󠁿' in self.emoji_to_language_map}")
         if payload.user_id == self.bot.user.id or (payload.member and payload.member.bot):
             return
 
-        # Use the dynamically loaded map instead of the hardcoded one
-        target_language = self.emoji_to_language_map.get(str(payload.emoji))
+        # NEW LOGIC: Look up the emoji's NAME directly in our new map.
+        target_language = self.emoji_name_to_language_map.get(payload.emoji.name)
         if not target_language:
             return
 
@@ -193,14 +156,9 @@ class TranslationCog(commands.Cog, name="Translation"):
                     translated_embeds.append(translated_embed)
             
             if translated_text or translated_embeds:
-                await message.reply(
-                    content=translated_text,
-                    embeds=translated_embeds,
-                    mention_author=False
-                )
+                await message.reply(content=translated_text, embeds=translated_embeds, mention_author=False)
 
     async def translate_message_callback(self, interaction: discord.Interaction, message: discord.Message):
-        """The actual logic for the 'Translate Message' context menu."""
         await interaction.response.defer(ephemeral=True)
 
         if not message.content and not message.embeds:
@@ -225,11 +183,7 @@ class TranslationCog(commands.Cog, name="Translation"):
                 translated_embeds.append(translated_embed)
 
         if translated_text and not translated_embeds:
-            reply_embed = discord.Embed(
-                title="Translation Result",
-                description=translated_text,
-                color=discord.Color.blue()
-            )
+            reply_embed = discord.Embed(title="Translation Result", description=translated_text, color=discord.Color.blue())
             reply_embed.set_footer(text=f"Original message by {message.author.display_name}")
             await interaction.followup.send(embed=reply_embed)
         
@@ -243,7 +197,6 @@ class TranslationCog(commands.Cog, name="Translation"):
              await interaction.followup.send("An error occurred during translation. Please try again.", ephemeral=True)
 
 async def setup(bot: commands.Bot):
-    """The setup function for the cog."""
     if not all(hasattr(bot, attr) for attr in ['db_manager', 'translator', 'usage_manager']):
         log.critical("TranslationCog cannot be loaded: Core services not found on bot object.")
         return
