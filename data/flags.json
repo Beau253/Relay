@@ -1313,5 +1313,10 @@
     "countryCode": null,
     "countryName": "Transgender Flag",
     "languages": []
+  },
+  ":england:": {
+    "countryCode": "EN",
+    "countryName": "Englnd",
+    "languages": ["en"]
   }
 }
