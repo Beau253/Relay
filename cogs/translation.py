@@ -2,11 +2,10 @@ import discord
 import logging
 import os
 import json
-import re
-import random
 from discord.ext import commands
 from discord import app_commands
 from cogs.hub_manager import HubManagerCog
+from langdetect import detect, LangDetectException # <-- Already imported
 
 # Import our core services and utilities
 from core import DatabaseManager, TextTranslator, UsageManager, language_autocomplete, SUPPORTED_LANGUAGES
@@ -31,9 +30,7 @@ class TranslationCog(commands.Cog, name="Translation"):
         self.translator = translator
         self.usage = usage_manager
         self.emoji_to_language_map: dict[str, str] = {}
-        self.pirate_dict: dict[str, str] = {}
         self._load_flag_data()
-        self._load_pirate_data() # <-- Load the new pirate dictionary
 
         log.info("[TRANSLATION_COG] Initializing and adding 'Translate Message' context menu...")
         self.translate_message_menu = app_commands.ContextMenu(
@@ -73,37 +70,6 @@ class TranslationCog(commands.Cog, name="Translation"):
             log.critical(f"FATAL: flags.json has a syntax error and could not be parsed: {e}. Flag reactions will not work.")
         except Exception as e:
             log.error(f"Error loading flags.json: {e}", exc_info=True)
-            
-    def _load_pirate_data(self):
-        """Loads the pirate speak dictionary from pirate_speak.json."""
-        try:
-            script_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            file_path = os.path.join(script_dir, 'data', 'pirate_speak.json')
-            with open(file_path, 'r', encoding='utf-8') as f:
-                self.pirate_dict = json.load(f)
-            log.info(f"Successfully loaded {len(self.pirate_dict)} pirate speak phrases.")
-        except FileNotFoundError:
-            log.warning("Could not find data/pirate_speak.json. Pirate translations will be disabled.")
-        except json.JSONDecodeError as e:
-            log.error(f"FATAL: pirate_speak.json has a syntax error and could not be parsed: {e}. Pirate translations will be disabled.")
-        except Exception as e:
-            log.error(f"Error loading pirate_speak.json: {e}", exc_info=True)
-
-    def _translate_to_pirate_speak(self, text: str) -> str:
-        """Translates a string to pirate speak using the loaded dictionary."""
-        if not self.pirate_dict:
-            return "Arr, me dictionary be lost at sea!"
-
-        # For phrases, it's best to replace the longest ones first.
-        sorted_phrases = sorted(self.pirate_dict.keys(), key=len, reverse=True)
-        
-        # Use regex to do a case-insensitive replacement for all phrases
-        for phrase in sorted_phrases:
-            text = re.sub(r'\b' + re.escape(phrase) + r'\b', self.pirate_dict[phrase], text, flags=re.IGNORECASE)
-        
-        # Add a random pirate exclamation for fun
-        exclamations = ["Arrr!", "Shiver me timbers!", "Yo ho ho!", "Blimey!"]
-        return f"{text} {random.choice(exclamations)}"
 
 
     def cog_unload(self):
@@ -147,12 +113,16 @@ class TranslationCog(commands.Cog, name="Translation"):
 
         target_lang = config['target_language_code']
 
+        # --- OFFLINE PRE-FILTER ---
         try:
             detected_lang = detect(message.content)
             if detected_lang.split('-')[0] == target_lang.split('-')[0]:
+                log.info(f"Auto-translate skipped: Local pre-filter detected '{detected_lang}', which matches target '{target_lang}'. No API call made.")
                 return
         except LangDetectException:
+            log.warning("Local language detection failed for auto-translate. Falling back to Google API for full check.")
             pass
+        # --- END OF PRE-FILTER ---
 
         translation_result = await self.perform_translation(message.content, target_lang)
         if not translation_result:
@@ -170,7 +140,11 @@ class TranslationCog(commands.Cog, name="Translation"):
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
         if payload.user_id == self.bot.user.id or (payload.member and payload.member.bot):
             return
-            
+
+        target_language = self.emoji_to_language_map.get(str(payload.emoji))
+        if not target_language:
+            return
+
         try:
             channel = self.bot.get_channel(payload.channel_id)
             if not isinstance(channel, (discord.TextChannel, discord.Thread)): return
@@ -178,29 +152,20 @@ class TranslationCog(commands.Cog, name="Translation"):
         except (discord.NotFound, discord.Forbidden):
             return
 
-        if not message.content: # Pirate speak only works on text content
-            return
-
-        # --- PIRATE SPEAK FEATURE ---
-        if str(payload.emoji) == '🏴‍☠️':
-            log.info(f"Pirate speak triggered by {payload.member.display_name if payload.member else 'Unknown User'}.")
-            pirate_text = self._translate_to_pirate_speak(message.content)
-            await message.reply(content=pirate_text, mention_author=False)
-            return # IMPORTANT: Stop processing after handling pirate speak
-            
-        # --- STANDARD FLAG TRANSLATION ---
-        target_language = self.emoji_to_language_map.get(str(payload.emoji))
-        if not target_language:
+        if not message.content and not message.embeds:
             return
             
-        if message.content:
+        # --- NEW OFFLINE PRE-FILTER FOR REACTIONS ---
+        if message.content: # Only run pre-filter if there is text content
             try:
                 detected_lang = detect(message.content)
                 if detected_lang.split('-')[0] == target_language.split('-')[0]:
-                    log.info(f"Flag reaction skipped: Local pre-filter detected '{detected_lang}', matching target '{target_language}'.")
-                    return
+                    log.info(f"Flag reaction skipped: Local pre-filter detected '{detected_lang}', matching target '{target_language}'. No API call made.")
+                    return # Silently stop if the language is already correct.
             except LangDetectException:
-                pass
+                log.warning("Local language detection failed for flag reaction. Falling back to Google API.")
+                pass # Fallback to Google API for complex cases
+        # --- END OF PRE-FILTER ---
 
         log.info(f"Flag reaction translation triggered by {payload.member.display_name if payload.member else 'Unknown User'} for language '{target_language}'.")
         
