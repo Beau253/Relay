@@ -147,6 +147,7 @@ class TranslationCog(commands.Cog, name="Translation"):
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
+        print(f"DEBUG: Received reaction. Emoji is: '{str(payload.emoji)}'. Map contains England flag?: {'🏴󠁧󠁢󠁥󠁮󠁧󠁿' in self.emoji_to_language_map}")
         if payload.user_id == self.bot.user.id or (payload.member and payload.member.bot):
             return
 
