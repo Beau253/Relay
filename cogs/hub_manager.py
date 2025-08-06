@@ -5,11 +5,13 @@ import discord
 import logging
 import asyncpg
 import json
+import re # For parsing duration strings
 from discord.ext import commands, tasks
 from discord import app_commands
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional, Dict
 from core import language_autocomplete, SUPPORTED_LANGUAGES
+from core.utils import country_code_to_flag # IMPORT a centralized utility
 from core import DatabaseManager, TextTranslator, UsageManager
 
 log = logging.getLogger(__name__)
@@ -24,18 +26,7 @@ LANG_TO_COUNTRY_CODE = {
     'da': 'DK', 'fi': 'FI', 'pl': 'PL', 'tr': 'TR'
 }
 
-def country_code_to_flag(code: str) -> str:
-    """Converts a two-letter country code (e.g., 'US') to a flag emoji (e.g., '🇺🇸')."""
-    # The offset between the uppercase letter 'A' and the Regional Indicator Symbol 'A'
-    OFFSET = 0x1F1E6 - ord('A')
-    
-    # Return a default white flag if the code is invalid.
-    if not code or len(code) != 2:
-        return '🏳️'
-    
-    code = code.upper()
-    # Combine the two regional indicator characters to form the flag.
-    return chr(ord(code[0]) + OFFSET) + chr(ord(code[1]) + OFFSET)
+# DELETED: The country_code_to_flag function is now in core/utils.py
 
 MAIN_LANGUAGE_COUNTRY_CODE = LANG_TO_COUNTRY_CODE.get(MAIN_LANGUAGE, 'US')
 MAIN_LANGUAGE_FLAG = country_code_to_flag(MAIN_LANGUAGE_COUNTRY_CODE)
@@ -143,7 +134,8 @@ class HubExtensionView(discord.ui.View):
             
             # Respond to the interaction and delete the original message with the button.
             await interaction.response.send_message(confirmation_msg)
-            await interaction.message.delete()
+            if interaction.message:
+                await interaction.message.delete()
         else:
             # This happens if the hub was already archived/deleted before the button was clicked.
             error_msg = ui_translator.get_string("HubUI-ErrorExpired", self.target_lang)
@@ -175,15 +167,17 @@ class HubManagerCog(commands.Cog, name="Hub Manager"):
     def cog_unload(self):
         self.check_hubs_for_warnings.cancel()
         self.check_hubs_for_expiration.cancel()
+        self.bot.tree.remove_command(self.translate_channel_menu.name, type=self.translate_channel_menu.type)
+
 
     # --- LOCALIZATION AND WEBHOOK HELPERS ---
     async def _send_localized_hub_message(self, thread: discord.Thread, target_lang: str, english_text: str, view: Optional[discord.ui.View] = None):
         """Translates a message and sends it to a hub. Falls back to English on failure."""
-        translated_text = await self.translator.translate_text(english_text, target_lang)
-        if translated_text:
+        translation_result = await self.translator.translate_text(english_text, target_lang)
+        translated_text = translation_result['translated_text'] if translation_result else english_text
+        if translation_result:
             await self.usage.record_usage(len(english_text))
-        else:
-            translated_text = english_text
+        
         await thread.send(translated_text, view=view)
 
     async def _get_webhook(self, channel: discord.TextChannel | discord.Thread) -> Optional[discord.Webhook]:
@@ -201,6 +195,9 @@ class HubManagerCog(commands.Cog, name="Hub Manager"):
         except discord.Forbidden:
             log.error(f"Missing 'Manage Webhooks' permission in channel #{target_channel.name}")
             return None
+        except Exception as e:
+            log.error(f"Failed to get or create webhook for channel {target_channel.id}: {e}", exc_info=True)
+            return None
 
     async def _send_webhook_message(self, channel: discord.TextChannel | discord.Thread, content: str, author: discord.Member | discord.User, custom_username: Optional[str] = None, embeds: Optional[List[discord.Embed]] = None):
         webhook = await self._get_webhook(channel)
@@ -210,44 +207,37 @@ class HubManagerCog(commands.Cog, name="Hub Manager"):
 
         try:
             if isinstance(channel, discord.Thread):
-                await webhook.send(content=content, username=username_to_use, avatar_url=author.display_avatar.url, thread=channel, embeds=embeds)
+                await webhook.send(content=content, username=username_to_use, avatar_url=author.display_avatar.url, thread=channel, embeds=embeds or [])
             else:
-                # FIX: Added embeds=embeds parameter
-                await webhook.send(content=content, username=username_to_use, avatar_url=author.display_avatar.url, embeds=embeds)
+                await webhook.send(content=content, username=username_to_use, avatar_url=author.display_avatar.url, embeds=embeds or [])
         except (discord.Forbidden, discord.NotFound) as e:
             log.error(f"Failed to send webhook message to {channel.id}: {e}")
 
     @staticmethod
-    async def _translate_embed(translator, embed: discord.Embed, target_lang: str, source_lang: Optional[str] = None) -> discord.Embed:
+    async def _translate_embed(translator: TextTranslator, embed: discord.Embed, target_lang: str, source_lang: Optional[str] = None) -> discord.Embed:
         """Takes an embed, translates its text, and returns a new translated embed."""
         new_embed = embed.copy()
 
-        # Translate title
+        async def translate_field(text):
+            if not text: return text
+            result = await translator.translate_text(text, target_lang, source_lang)
+            return result['translated_text'] if result else text
+
         if embed.title:
-            new_embed.title = await translator.translate_text(embed.title, target_lang, source_lang)
-
-        # Translate description
+            new_embed.title = await translate_field(embed.title)
         if embed.description:
-            new_embed.description = await translator.translate_text(embed.description, target_lang, source_lang)
-
-        # Translate fields
+            new_embed.description = await translate_field(embed.description)
         if embed.fields:
             new_embed.clear_fields()
             for field in embed.fields:
-                translated_name = await translator.translate_text(field.name, target_lang, source_lang)
-                translated_value = await translator.translate_text(field.value, target_lang, source_lang)
-                new_embed.add_field(
-                    name=translated_name or field.name,
-                    value=translated_value or field.value,
-                    inline=field.inline
-                )
-
-        # Translate footer
+                translated_name = await translate_field(field.name)
+                translated_value = await translate_field(field.value)
+                new_embed.add_field(name=translated_name, value=translated_value, inline=field.inline)
         if embed.footer and embed.footer.text:
-            translated_footer = await translator.translate_text(embed.footer.text, target_lang, source_lang)
-            new_embed.set_footer(text=translated_footer, icon_url=embed.footer.icon_url)
+            new_embed.set_footer(text=await translate_field(embed.footer.text), icon_url=embed.footer.icon_url)
 
         return new_embed
+
 
     # --- HUB LIFECYCLE TASKS ---
 
@@ -259,6 +249,9 @@ class HubManagerCog(commands.Cog, name="Hub Manager"):
         for hub_record in hubs_to_warn:
             thread = self.bot.get_channel(hub_record['thread_id'])
             if thread and isinstance(thread, discord.Thread):
+                # Extra check to ensure we don't warn permanent hubs
+                if hub_record['expires_at'] is None:
+                    continue
                 log.info(f"Hub {thread.id} is nearing expiration. Posting warning.")
                 lang_code = hub_record['language_code']
                 
@@ -277,9 +270,11 @@ class HubManagerCog(commands.Cog, name="Hub Manager"):
     @tasks.loop(minutes=1)
     async def check_hubs_for_expiration(self):
         """Archives expired hubs after a grace period."""
+        if not self.db.pool: return
         # This task now checks for hubs that expired 5 minutes ago to create a grace period
         five_mins_ago = datetime.now(timezone.utc) - timedelta(minutes=5)
-        query = "SELECT * FROM translation_hubs WHERE expires_at < $1 AND is_archived = FALSE;"
+        # The query specifically targets hubs with a non-NULL expiration date
+        query = "SELECT * FROM translation_hubs WHERE expires_at IS NOT NULL AND expires_at < $1 AND is_archived = FALSE;"
         expired_hubs = await self.db.pool.fetch(query, five_mins_ago)
         for hub_record in expired_hubs:
             thread_id = hub_record['thread_id']
@@ -297,7 +292,7 @@ class HubManagerCog(commands.Cog, name="Hub Manager"):
             except Exception as e:
                 log.error(f"Error during hub archival for thread {thread_id}: {e}", exc_info=True)
     
-    async def create_hub_logic(self, interaction: discord.Interaction, language: str, channel: discord.TextChannel):
+    async def create_hub_logic(self, interaction: discord.Interaction, language: str, channel: discord.TextChannel, expiry_str: str = '1h'):
         if not interaction.response.is_done():
             await interaction.response.defer(ephemeral=True)
 
@@ -311,6 +306,25 @@ class HubManagerCog(commands.Cog, name="Hub Manager"):
         if language not in SUPPORTED_LANGUAGES:
             await interaction.followup.send(f"Sorry, '{language}' is not a supported language code.", ephemeral=True)
             return
+
+        # --- Parse Expiry String ---
+        expires_at: Optional[datetime] = None
+        expiry_lower = expiry_str.lower()
+        if expiry_lower != 'permanent':
+            try:
+                match = re.match(r"(\d+)\s*([mhd])", expiry_lower)
+                if not match: raise ValueError("Invalid duration format.")
+                
+                value, unit = int(match.group(1)), match.group(2)
+                if unit == 'm': delta = timedelta(minutes=value)
+                elif unit == 'h': delta = timedelta(hours=value)
+                elif unit == 'd': delta = timedelta(days=value)
+                else: raise ValueError("Invalid time unit.")
+                
+                expires_at = datetime.now(timezone.utc) + delta
+            except (ValueError, TypeError):
+                await interaction.followup.send("Invalid expiry format. Use a number followed by 'm', 'h', or 'd' (e.g., `30m`, `2h`, `7d`), or `permanent`.", ephemeral=True)
+                return
             
         active_hub_record = await self.db.get_active_hub(channel.id, language)
         if active_hub_record:
@@ -325,113 +339,82 @@ class HubManagerCog(commands.Cog, name="Hub Manager"):
         archived_hub_record = await self.db.get_archived_hub(channel.id, language)
         if archived_hub_record:
             try:
-                # Find the archived thread
                 thread = await self.bot.fetch_channel(archived_hub_record['thread_id'])
                 if isinstance(thread, discord.Thread):
                     log.info(f"Reactivating archived hub {thread.id} for user {interaction.user.id}")
-                    # Unarchive and unlock the thread
                     await thread.edit(archived=False, locked=False)
-                    
-                    # Set a new expiration time and update the database record
-                    new_expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
-                    # This single call correctly updates the existing record or inserts if needed.
-                    await self.db.create_hub_record(thread.id, channel.id, interaction.guild_id, language, interaction.user.id, new_expires_at)
+                    await self.db.create_hub_record(thread.id, channel.id, interaction.guild_id, language, interaction.user.id, expires_at)
 
-                    # Send a confirmation message in the hub
-                    reactivation_msg = f"This hub has been reactivated by {interaction.user.mention} and will now expire at {discord.utils.format_dt(new_expires_at, style='F')}."
+                    expiry_msg_part = f"will now expire at {discord.utils.format_dt(expires_at, style='F')}" if expires_at else "is now permanent"
+                    reactivation_msg = f"This hub has been reactivated by {interaction.user.mention} and {expiry_msg_part}."
                     await self._send_localized_hub_message(thread, language, reactivation_msg)
 
-                    # Send a private confirmation to the user who initiated it
                     await interaction.followup.send(f"Successfully reactivated the existing hub: {thread.mention}", ephemeral=True)
-                    return # IMPORTANT: Stop execution to prevent creating a new hub
+                    return
             except discord.NotFound:
                 log.warning(f"Found record for archived hub {archived_hub_record['thread_id']} but couldn't fetch it. Deleting record.")
                 await self.db.delete_hub(archived_hub_record['thread_id'])
             except Exception as e:
-                log.error(f"Error during hub reactivation for {archived_hub_record['thread_id']}: {e}")
+                log.error(f"Error during hub reactivation for {archived_hub_record['thread_id']}: {e}", exc_info=True)
                 await interaction.followup.send("An error occurred while trying to reactivate the existing hub.", ephemeral=True)
                 return
         
-        translated_channel_name = await self.translator.translate_text(channel.name.replace('-', ' '), language)
-        if translated_channel_name:
-            await self.usage.record_usage(len(channel.name))
-        else:
-            translated_channel_name = channel.name
+        translation_result = await self.translator.translate_text(channel.name.replace('-', ' '), language)
+        translated_channel_name = translation_result['translated_text'] if translation_result else channel.name
+        if translation_result: await self.usage.record_usage(len(channel.name))
 
         country_code = LANG_TO_COUNTRY_CODE.get(language)
-        # Generate the flag emoji using our new helper function.
-        flag = country_code_to_flag(country_code)
+        flag = country_code_to_flag(country_code) if country_code else '🏳️'
         
         hub_name = f"{flag} | {translated_channel_name}"
         
         try:
-            thread = await channel.create_thread(
-                name=hub_name,
-                type=discord.ChannelType.private_thread,
-                invitable=True # Correct parameter name, takes a boolean
-            )
-            log.info(f"Created new PRIVATE hub thread: '{hub_name}' ({thread.id})")
+            thread_type = discord.ChannelType.private_thread if interaction.guild and interaction.guild.premium_tier < 2 else discord.ChannelType.public_thread
+            thread = await channel.create_thread(name=hub_name, type=thread_type)
+            log.info(f"Created new {thread_type.name} hub thread: '{hub_name}' ({thread.id})")
         except discord.Forbidden:
-            await interaction.followup.send("I don't have permission to create **private** threads in that channel. Please check my permissions (needs 'Create Private Threads').", ephemeral=True)
+            await interaction.followup.send("I don't have permission to create threads in that channel. Please check my permissions.", ephemeral=True)
             return
 
-        expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
         await self.db.create_hub_record(thread.id, channel.id, interaction.guild_id, language, interaction.user.id, expires_at)
         
-        welcome_template = f"🌍 Welcome {interaction.user.mention} to the `{language}` translation hub for {channel.mention}!\n\nThis session expires at {discord.utils.format_dt(expires_at, style='F')}."
+        expiry_msg_part = f"This session expires at {discord.utils.format_dt(expires_at, style='F')}." if expires_at else "This is a permanent hub."
+        welcome_template = f"🌍 Welcome {interaction.user.mention} to the `{language}` translation hub for {channel.mention}!\n\n{expiry_msg_part}"
         await self._send_localized_hub_message(thread, language, welcome_template)
         
         view = discord.ui.View()
         view.add_item(discord.ui.Button(label="Go to Hub", style=discord.ButtonStyle.link, url=thread.jump_url))
         
-        if interaction.guild: # Only attempt to log to admin channel if in a guild context
-            guild_id = interaction.guild.id
-            guild_config = await self.db.get_guild_config(guild_id)
-            admin_log_channel_id = None
-            if guild_config:
-                admin_log_channel_id = guild_config['admin_log_channel_id']
-
-            if admin_log_channel_id:
-                log_channel = self.bot.get_channel(admin_log_channel_id)
+        if interaction.guild:
+            guild_config = await self.db.get_guild_config(interaction.guild_id)
+            if guild_config and guild_config.get('admin_log_channel_id'):
+                log_channel = self.bot.get_channel(guild_config['admin_log_channel_id'])
                 if log_channel and isinstance(log_channel, discord.TextChannel):
                     await log_channel.send(f"➕ New hub created by {interaction.user.mention} for `{language}` in {channel.mention}. New hub: {thread.mention}")
-                else:
-                    log.warning(f"Configured admin log channel {admin_log_channel_id} for guild {guild_id} is invalid or not a text channel.")
-            else:
-                log.info(f"No admin log channel configured for guild {guild_id}.")
-        else:
-            log.warning("Cannot log new hub creation: Interaction not in a guild context.")
                 
         await interaction.followup.send(f"Successfully created a new translation hub: {thread.mention}", view=view)
 
     @app_commands.command(name="translate_channel", description="Creates a live, two-way translation hub for this channel.")
     @app_commands.autocomplete(language=language_autocomplete)
-    @app_commands.describe(language="The language for the new hub (e.g., es, de, ja).")
-    async def create_hub_slash(self, interaction: discord.Interaction, language: str):
-        if not isinstance(interaction.channel, discord.TextChannel):
-            await interaction.response.send_message("This command can only be run in a standard text channel.", ephemeral=True)
+    @app_commands.describe(
+        language="The language for the new hub (e.g., es, de, ja).",
+        expiry="Set a custom duration (e.g., '30m', '2h', '7d') or 'permanent'. Default is '1h'."
+    )
+    async def create_hub_slash(self, interaction: discord.Interaction, language: str, expiry: str = '1h'):
+        if not isinstance(interaction.channel, (discord.TextChannel, discord.ForumChannel)):
+            await interaction.response.send_message("This command can only be run in a standard text or forum channel.", ephemeral=True)
             return
-        await self.create_hub_logic(interaction, language, interaction.channel)
+        await self.create_hub_logic(interaction, language, interaction.channel, expiry)
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
-        # Check to ignore messages from the bot itself.
-        if message.author == self.bot.user:
-            return
-
-        # This remains to ignore the bot's own webhook-sent translations.
-        if message.webhook_id:
-            return
-        
-        # This remains to ignore empty messages or DMs.
-        if not (message.content or message.attachments or message.embeds) or not message.guild:
+        if message.author.bot or not (message.content or message.attachments or message.embeds) or not message.guild:
             return
         
         # --- HUB -> MAIN/OTHER HUBS ---
         if isinstance(message.channel, discord.Thread):
             origin_hub_record = await self.db.get_hub_by_thread_id(message.channel.id)
             if origin_hub_record and not origin_hub_record['is_archived']:
-                # Get the list of ALL hubs for this source channel, including the origin one
                 all_hubs = await self.db.get_hubs_by_source_channel(origin_hub_record['source_channel_id'])
                 await self.handle_message_from_hub(message, origin_hub_record, all_hubs)
                 return
@@ -443,13 +426,8 @@ class HubManagerCog(commands.Cog, name="Hub Manager"):
                 await self.handle_message_from_source(message, active_hubs)
 
     async def handle_message_from_source(self, message: discord.Message, hubs: List[asyncpg.Record]):
-        """
-        Translates a message from a source channel into all associated hub threads.
-        This is the corrected version that ensures all hubs are processed.
-        """
         log.info(f"Relaying message from source channel {message.channel.id} to {len(hubs)} hubs.")
 
-        # --- Prepare message components once ---
         text_to_translate = message.content.strip() if message.content else ""
         attachment_links_str = "\n".join([att.proxy_url for att in message.attachments])
         current_source_flag_emoji = MAIN_LANGUAGE_FLAG
@@ -457,165 +435,118 @@ class HubManagerCog(commands.Cog, name="Hub Manager"):
 
         if message.guild:
             guild_config = await self.db.get_guild_config(message.guild.id)
-            if guild_config and guild_config['main_language_code']:
+            if guild_config and guild_config.get('main_language_code'):
                 current_guild_main_lang = guild_config['main_language_code']
                 source_country_code = LANG_TO_COUNTRY_CODE.get(current_guild_main_lang, 'XX')
                 current_source_flag_emoji = country_code_to_flag(source_country_code)
 
-        # --- Loop through each hub and send the translated message ---
         for hub_record in hubs:
             target_lang = hub_record['language_code']
             thread_id = hub_record['thread_id']
             thread = self.bot.get_channel(thread_id)
 
             if not thread or not isinstance(thread, discord.Thread):
-                log.warning(f"Hub thread {thread_id} not found for source channel {message.channel.id}. Skipping.")
+                log.warning(f"Hub thread {thread_id} not found for source {message.channel.id}. Skipping.")
                 continue
 
-            # Ensure we don't try to translate to the same language
-            if current_guild_main_lang == target_lang:
-                log.info(f"Skipping relay to hub {thread_id} because its language '{target_lang}' is the same as the source language.")
+            if current_guild_main_lang.split('-')[0] == target_lang.split('-')[0]:
                 continue
 
             translated_text = ""
             if text_to_translate:
                 if self.usage.check_limit_exceeded(len(text_to_translate)):
                     log.warning(f"Translation to hub {thread.id} skipped: API limit reached.")
-                    translated_text = f"[Translation Skipped] {text_to_translate}"
+                    translated_text = f"-[[ Translation Skipped due to API limits ]]-\n\n{text_to_translate}"
                 else:
-                    # The translator will handle remapping 'zh-TW' to 'zh'
                     translation_result = await self.translator.translate_text(text_to_translate, target_lang, source_language=current_guild_main_lang)
                     if translation_result:
                         await self.usage.record_usage(len(text_to_translate))
-                        translated_text = translation_result
+                        translated_text = translation_result['translated_text']
                     else:
-                        log.error(f"Translation failed for '{text_to_translate}' to hub {thread.id} (lang: {target_lang}).")
-                        # We continue here so we don't send a "Translation Failed" message
-                        continue
-            
+                        continue # Don't send a "Translation Failed" message
+
             translated_embeds = []
             if message.embeds:
                 for embed in message.embeds:
-                    # Use our new helper to translate the embed
-                    translated_embed = await self._translate_embed(embed, target_lang, source_lang=current_guild_main_lang)
+                    translated_embed = await self._translate_embed(self.translator, embed, target_lang, source_lang=current_guild_main_lang)
                     translated_embeds.append(translated_embed)
-
-            # Construct the final message content
-            final_content_parts = []
-            if translated_text:
-                final_content_parts.append(translated_text)
-            if attachment_links_str:
-                final_content_parts.append(attachment_links_str)
-
-            if not final_content_parts and not translated_embeds:
-                log.info(f"No content (text, attachments, or embeds) to forward from source channel {message.channel.id} to hub {thread.id}.")
+            
+            final_content = self.build_final_message(current_source_flag_emoji, translated_text, attachment_links_str)
+            if not final_content and not translated_embeds:
                 continue
 
-            final_content = f"{current_source_flag_emoji} " + "\n".join(final_content_parts)
-            
             await self._send_webhook_message(thread, final_content, message.author, embeds=translated_embeds)
 
-
-    # Handle_message_from_hub
     async def handle_message_from_hub(self, message: discord.Message, origin_hub_data: asyncpg.Record, all_hubs: List[asyncpg.Record]):
-        """
-        Translates a message from a hub thread back to the main source channel and all other associated hubs.
-        """
         source_channel_id = origin_hub_data['source_channel_id']
         origin_lang_code = origin_hub_data['language_code']
         source_channel = self.bot.get_channel(source_channel_id)
 
         if not source_channel or not isinstance(source_channel, discord.TextChannel):
-            log.warning(f"Source channel {source_channel_id} not found for hub {message.channel.id}. Skipping relay.")
+            log.warning(f"Source channel {source_channel_id} not found for hub {message.channel.id}. Skipping.")
             return
 
-        # Prepare message components once
         origin_country_code = LANG_TO_COUNTRY_CODE.get(origin_lang_code, 'XX')
         origin_flag_emoji = country_code_to_flag(origin_country_code)
         text_to_translate = message.content.strip() if message.content else ""
         attachment_links_str = "\n".join([att.proxy_url for att in message.attachments])
 
-        # Get main language for the guild
         current_guild_main_lang = MAIN_LANGUAGE
         if message.guild:
             guild_config = await self.db.get_guild_config(message.guild.id)
             if guild_config and guild_config.get('main_language_code'):
                 current_guild_main_lang = guild_config['main_language_code']
         
-        # --- Translate once for each target language needed ---
-        translations = {}
-        embed_translations = {} # Dictionary to hold translated embeds for each language
-        
-        # Create a set of unique target languages to avoid redundant API calls
         target_langs = {hub['language_code'] for hub in all_hubs}
         target_langs.add(current_guild_main_lang)
 
+        translations = {}
+        embed_translations = {}
+
         for lang in target_langs:
-            if lang == origin_lang_code: continue # No need to translate to its own language
-            
-            # Translate text for the current 'lang'
+            if lang.split('-')[0] == origin_lang_code.split('-')[0]: continue
+
             if text_to_translate:
-                translations[lang] = await self.translator.translate_text(text_to_translate, lang, source_language=origin_lang_code)
+                result = await self.translator.translate_text(text_to_translate, lang, source_language=origin_lang_code)
+                translations[lang] = result['translated_text'] if result else None
 
-            # Translate embeds for the current 'lang'
             if message.embeds:
-                embed_translations[lang] = []
-                for embed in message.embeds:
-                    translated_embed = await self._translate_embed(embed, lang, source_language=origin_lang_code)
-                    embed_translations[lang].append(translated_embed)
+                embed_translations[lang] = [await self._translate_embed(self.translator, embed, lang, source_language=origin_lang_code) for embed in message.embeds]
 
-        # Record usage for all successful text translations at once
         if text_to_translate:
             successful_translations = sum(1 for t in translations.values() if t is not None)
             if successful_translations > 0:
                 await self.usage.record_usage(len(text_to_translate) * successful_translations)
 
-        # --- 1. Send to Main Source Channel ---
-        log.info(f"Relaying message from hub {message.channel.id} to source channel {source_channel_id} (target: {current_guild_main_lang})")
-        
+        # 1. Send to Main Source Channel
         main_text = translations.get(current_guild_main_lang)
-        # MODIFIED: Use `or []` to provide an empty list as a fallback
-        main_embeds = embed_translations.get(current_guild_main_lang) or []
-        main_content = self.build_final_message(origin_flag_emoji, main_text, attachment_links_str, f"[Translation Failed] {text_to_translate}" if text_to_translate else "")
-        
+        main_embeds = embed_translations.get(current_guild_main_lang)
+        main_content = self.build_final_message(origin_flag_emoji, main_text, attachment_links_str, text_to_translate if text_to_translate else "")
         if main_content or main_embeds:
             await self._send_webhook_message(source_channel, main_content, message.author, embeds=main_embeds)
 
-        # --- 2. Send to ALL OTHER Hubs ---
+        # 2. Send to ALL OTHER Hubs
         for other_hub_record in all_hubs:
-            # Skip sending the message back to the hub it came from
-            if other_hub_record['thread_id'] == message.channel.id:
-                continue
-
+            if other_hub_record['thread_id'] == message.channel.id: continue
             other_thread = self.bot.get_channel(other_hub_record['thread_id'])
             if not other_thread or not isinstance(other_thread, discord.Thread): continue
-
-            target_lang_code = other_hub_record['language_code']
-            log.info(f"Relaying message from hub {message.channel.id} to other hub {other_thread.id} (target: {target_lang_code})")
             
+            target_lang_code = other_hub_record['language_code']
             other_text = translations.get(target_lang_code)
-            # MODIFIED: Use `or []` to provide an empty list as a fallback
-            other_embeds = embed_translations.get(target_lang_code) or []
-            other_content = self.build_final_message(origin_flag_emoji, other_text, attachment_links_str, f"[Translation Failed] {text_to_translate}" if text_to_translate else "")
+            other_embeds = embed_translations.get(target_lang_code)
+            other_content = self.build_final_message(origin_flag_emoji, other_text, attachment_links_str, text_to_translate if text_to_translate else "")
             
             if other_content or other_embeds:
                 await self._send_webhook_message(other_thread, other_content, message.author, embeds=other_embeds)
 
-    # --- FIX: Place the build_final_message function here, at the correct class level ---
-    def build_final_message(self, flag: str, translated_text: Optional[str], attachments: str, fallback_text: str) -> str:
+    def build_final_message(self, flag: str, translated_text: Optional[str], attachments: str = "", fallback_text: Optional[str] = None) -> str:
         """Helper to construct the final message string."""
-        content_parts = []
+        text_to_show = translated_text
+        if text_to_show is None and fallback_text:
+            text_to_show = f"-[[ Translation Failed ]]-\n\n{fallback_text}"
         
-        # Use the translated text if available, otherwise use the fallback
-        text_to_show = translated_text if translated_text is not None else fallback_text
-        
-        if text_to_show:
-            content_parts.append(text_to_show)
-        if attachments:
-            content_parts.append(attachments)
-            
-        if not content_parts:
-            return ""
+        content_parts = [part for part in [text_to_show, attachments] if part]
+        if not content_parts: return ""
             
         return f"{flag} " + "\n".join(content_parts)
 
@@ -623,8 +554,8 @@ class HubManagerCog(commands.Cog, name="Hub Manager"):
         """The actual logic for the 'Translate this Channel' context menu."""
         channel = message.channel
 
-        if not isinstance(channel, discord.TextChannel):
-            await interaction.response.send_message("This action can only be used on a standard text channel.", ephemeral=True)
+        if not isinstance(channel, (discord.TextChannel, discord.ForumChannel)):
+            await interaction.response.send_message("This action can only be used on a standard text or forum channel.", ephemeral=True)
             return
 
         user_locale = await self.db.get_user_preferences(interaction.user.id)
@@ -634,7 +565,7 @@ class HubManagerCog(commands.Cog, name="Hub Manager"):
         
         target_language = user_locale if user_locale in SUPPORTED_LANGUAGES else user_locale.split('-')[0]
         
-        await self.create_hub_logic(interaction, target_language, channel)
+        await self.create_hub_logic(interaction, target_language, channel) # Uses default 1h expiry
 
 
 # The setup function is now very simple

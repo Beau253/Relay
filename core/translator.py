@@ -74,34 +74,52 @@ class TextTranslator:
         self,
         text: str,
         target_language: str,
-        source_language: Optional[str] = None
-    ) -> Optional[str]:
+        source_language: Optional[str] = None,
+    ) -> Optional[Dict[str, str]]:
 
         if not self.is_initialized or not self.client or not self.parent:
             log.error("Cannot translate: Translator service is not initialized or configured properly.")
             return None
 
         # --- Language Code Mapping & Debugging ---
-        # If the target is Traditional Chinese, we remap it to the generic 'zh'
-        # code for better compatibility with the Google API.
-        effective_target_language = target_language
-        if target_language == 'zh-TW':
-            effective_target_language = 'zh'
-            log.info(f"Remapping target language 'zh-TW' to 'zh' for API call.")
+        # Remap zh-TW to zh for Google API compatibility
+        effective_target_language = 'zh' if target_language == 'zh-TW' else target_language
+        loop = asyncio.get_running_loop()
+
+        # --- Language Detection (if no source provided) ---
+        detected_language_code = source_language
+        if not detected_language_code:
+            try:
+                # Use the modern v3 client for language detection
+                response = await loop.run_in_executor(
+                    None,
+                    lambda: self.client.detect_language(
+                        parent=self.parent,
+                        content=text,
+                        mime_type="text/plain",
+                    )
+                )
+                # The v3 response is a list, we take the first and most confident result
+                if response.languages:
+                    detected_language_code = response.languages[0].language_code
+                    log.info(f"Language detection: Detected '{detected_language_code}' for text: '{text[:50]}...'")
+                else:
+                    raise ValueError("Detection response was empty.")
+            except Exception as e:
+                log.error(f"Language detection failed: {e}", exc_info=True)
+                return None # Fail if detection fails
 
         # --- Skip translating if source and target are the same ---
-        if source_language and effective_target_language and source_language.split('-')[0] == effective_target_language.split('-')[0]:
-            log.info(f"Skipping translation: Source ('{source_language}') and target ('{effective_target_language}') are effectively the same.")
-            return text
-
-        loop = asyncio.get_running_loop()
+        if detected_language_code and detected_language_code.split('-')[0] == effective_target_language.split('-')[0]:
+            log.info(f"Skipping translation: Detected source ('{detected_language_code}') and target ('{effective_target_language}') are effectively the same.")
+            return {"translated_text": text, "detected_language_code": detected_language_code}
 
         # Log the exact parameters we are about to send to the API
         api_params = {
             "parent": self.parent,
             "contents": [text],
             "target_language_code": effective_target_language,
-            "source_language_code": source_language,
+            "source_language_code": detected_language_code,
             "mime_type": "text/plain",
         }
         log.info(f"Calling Google Translate API with params: {api_params}")
@@ -115,7 +133,7 @@ class TextTranslator:
             if response and response.translations:
                 translated_text = response.translations[0].translated_text
                 log.info(f"Translation successful. Result: '{translated_text[:50]}...'")
-                return translated_text
+                return {"translated_text": translated_text, "detected_language_code": detected_language_code}
             else:
                 log.warning(f"Translation to '{effective_target_language}' succeeded but API returned no translations.")
                 return None

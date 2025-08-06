@@ -7,7 +7,9 @@ import asyncio
 from discord.ext import commands, tasks
 from discord import app_commands
 from typing import Optional
-from core import UsageManager, DatabaseManager, GoogleProjectPoolManager
+import re # For parsing duration strings
+from datetime import datetime, timedelta, timezone
+from core import UsageManager, DatabaseManager, GoogleProjectPoolManager, language_autocomplete
 
 log = logging.getLogger(__name__)
 
@@ -24,7 +26,7 @@ class AdminCog(commands.Cog, name="Admin"):
         self.gcp_pool = gcp_pool_manager
         
         # Start the background task if the usage manager is properly initialized
-        if self.usage.is_initialized:
+        if self.usage and self.usage.is_initialized:
             self.sync_usage_task.start()
 
     def cog_unload(self):
@@ -227,6 +229,118 @@ class AdminCog(commands.Cog, name="Admin"):
         
         # Edit the original message one last time with the final embed report
         await interaction.edit_original_response(content="Sync finished!", embed=final_embed)
+
+    @app_commands.command(name="set_hub_expiry", description="Sets or removes the expiration for a Translation Hub.")
+    @app_commands.describe(duration="The duration until expiry (e.g., '30m', '2h', '7d') or 'permanent'.")
+    async def set_hub_expiry(self, interaction: discord.Interaction, duration: str):
+        """Admin command to change a hub's expiration."""
+        await interaction.response.defer(ephemeral=True)
+
+        if not isinstance(interaction.channel, discord.Thread):
+            await interaction.followup.send("This command must be run inside a hub's thread.", ephemeral=True)
+            return
+
+        hub_record = await self.db.get_hub_by_thread_id(interaction.channel.id)
+        if not hub_record:
+            await interaction.followup.send("This thread is not a registered Translation Hub.", ephemeral=True)
+            return
+
+        new_expiry: Optional[datetime] = None
+        response_msg = ""
+        duration_lower = duration.lower()
+
+        if duration_lower == 'permanent':
+            new_expiry = None
+            response_msg = f"✅ This hub has been made **permanent** by {interaction.user.mention}."
+        else:
+            try:
+                # Regex to parse strings like "10m", "2h", "5d"
+                match = re.match(r"(\d+)\s*([mhd])", duration_lower)
+                if not match:
+                    raise ValueError("Invalid duration format.")
+                
+                value, unit = int(match.group(1)), match.group(2)
+                if unit == 'm':
+                    delta = timedelta(minutes=value)
+                elif unit == 'h':
+                    delta = timedelta(hours=value)
+                elif unit == 'd':
+                    delta = timedelta(days=value)
+                
+                new_expiry = datetime.now(timezone.utc) + delta
+                response_msg = f"✅ This hub's expiration has been updated by {interaction.user.mention}. It will now expire at {discord.utils.format_dt(new_expiry, style='F')}."
+            
+            except (ValueError, TypeError):
+                await interaction.followup.send("Invalid duration format. Use a number followed by 'm', 'h', or 'd' (e.g., `30m`, `2h`, `7d`), or `permanent`.", ephemeral=True)
+                return
+
+        updated = await self.db.update_hub_expiry(interaction.channel.id, new_expiry)
+        if updated:
+            await interaction.channel.send(response_msg)
+            await interaction.followup.send("Hub expiration updated successfully.", ephemeral=True)
+        else:
+            await interaction.followup.send("Failed to update hub expiration in the database.", ephemeral=True)
+            
+    # --- Hub Management Command Group ---
+    hub = app_commands.Group(name="hub", description="Manage Translation Hubs.")
+
+    @hub.command(name="set_expiry", description="Sets or removes the expiration for a Translation Hub.")
+    @app_commands.describe(duration="The duration until expiry (e.g., '30m', '2h', '7d') or 'permanent'.")
+    async def hub_set_expiry(self, interaction: discord.Interaction, duration: str):
+        # This is a wrapper to call the existing logic.
+        # We need this to exist as a separate function to be added to the group.
+        await self.set_hub_expiry(interaction, duration)
+
+    # --- Auto-Translate Command Group ---
+    autotranslate = app_commands.Group(name="autotranslate", description="Manage automatic channel translation.")
+
+    @autotranslate.command(name="set", description="Enable auto-translation for a channel.")
+    @app_commands.autocomplete(language=language_autocomplete)
+    @app_commands.describe(
+        channel="The channel to activate auto-translation in.",
+        language="The language to translate messages INTO.",
+        impersonate="Post translations using the original user's name and avatar (default: True)."
+    )
+    async def autotranslate_set(self, interaction: discord.Interaction, channel: discord.TextChannel, language: str, impersonate: bool = True):
+        await self.db.set_auto_translate_channel(channel.id, interaction.guild_id, language, impersonate)
+        impersonate_status = "enabled" if impersonate else "disabled"
+        await interaction.response.send_message(
+            f"✅ Auto-translation has been **enabled** for {channel.mention}.\n"
+            f"All messages not in `{language}` will be translated. Impersonation is `{impersonate_status}`.",
+            ephemeral=True
+        )
+
+    @autotranslate.command(name="delete", description="Disable auto-translation for a channel.")
+    @app_commands.describe(channel="The channel to disable auto-translation on.")
+    async def autotranslate_delete(self, interaction: discord.Interaction, channel: discord.TextChannel):
+        await self.db.remove_auto_translate_channel(channel.id)
+        await interaction.response.send_message(f"✅ Auto-translation has been **disabled** for {channel.mention}.", ephemeral=True)
+
+    @autotranslate.command(name="list", description="List all channels with auto-translation enabled.")
+    async def autotranslate_list(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        if not interaction.guild_id:
+            await interaction.followup.send("This command can only be used in a server.", ephemeral=True)
+            return
+            
+        configs = await self.db.get_all_auto_translate_configs_for_guild(interaction.guild_id)
+
+        if not configs:
+            await interaction.followup.send("No channels are configured for auto-translation in this server.", ephemeral=True)
+            return
+
+        embed = discord.Embed(title="Auto-Translate Configurations", color=discord.Color.blue())
+        description = ""
+        for config in configs:
+            channel = self.bot.get_channel(config['channel_id'])
+            channel_mention = channel.mention if channel else f"`Channel ID: {config['channel_id']}`"
+            lang = config['target_language_code']
+            impersonate_status = "✅" if config['impersonate'] else "❌"
+            description += f"{channel_mention} -> `{lang}` (Impersonate: {impersonate_status})\n"
+        
+        embed.description = description
+        await interaction.followup.send(embed=embed, ephemeral=True)
+
 
 async def setup(bot: commands.Bot):
     """The setup function for the cog."""

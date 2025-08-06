@@ -22,3 +22,17 @@ async def language_autocomplete(interaction: discord.Interaction, current: str) 
         if current.lower() in name.lower() or current.lower() in code.lower():
             choices.append(app_commands.Choice(name=f"{name} ({code})", value=code))
     return choices[:25] # Limit to 25 choices, the maximum for autocomplete
+
+def country_code_to_flag(code: str) -> str:
+    """Converts a two-letter country code (e.g., 'US') to a flag emoji (e.g., '🇺🇸')."""
+    # The offset between the uppercase letter 'A' and the Regional Indicator Symbol 'A'
+    OFFSET = 0x1F1E6 - ord('A')
+    
+    # Return a default white flag if the code is invalid.
+    if not code or len(code) != 2:
+        return '🏳️'
+    
+    code = code.upper()
+    # Combine the two regional indicator characters to form the flag.
+    return chr(ord(code[0]) + OFFSET) + chr(ord(code[1]) + OFFSET)
+    

@@ -1,42 +1,16 @@
 import discord
 import logging
+import os
+import json
 from discord.ext import commands
 from discord import app_commands
 from cogs.hub_manager import HubManagerCog
 
-# Import our core services
+# Import our core services and utilities
 from core import DatabaseManager, TextTranslator, UsageManager, language_autocomplete, SUPPORTED_LANGUAGES
+from core.utils import country_code_to_flag
 
 log = logging.getLogger(__name__)
-
-# A mapping from country flag emojis to ISO 639-1 language codes.
-FLAG_TO_LANGUAGE = {
-    '🇺🇸': 'en', '🇬🇧': 'en', '🇦🇺': 'en', # English
-    '🇪🇸': 'es', '🇲🇽': 'es', '🇦🇷': 'es', # Spanish
-    '🇫🇷': 'fr', '🇨🇦': 'fr', # French
-    '🇩🇪': 'de', # German
-    '🇮🇹': 'it', # Italian
-    '🇵🇹': 'pt', '🇧🇷': 'pt', # Portuguese
-    '🇷🇺': 'ru', # Russian
-    '🇨🇳': 'zh', # Chinese (Simplified)
-    '🇹🇼': 'zh-TW', # Chinese (Traditional)
-    '🇭🇰': 'yue', # Cantonese
-    '🇯🇵': 'ja', # Japanese
-    '🇰🇷': 'ko', # Korean
-    '🇸🇦': 'ar', # Arabic
-    '🇮🇳': 'hi', # Hindi
-    '🇮🇩': 'id', # Indonesian
-    '🇲🇾': 'ms', # Malay
-    '🇻🇳': 'vi', # Vietnamese
-    '🇵🇰': 'ur', # Urdu
-    '🇳🇱': 'nl', # Dutch
-    '🇸🇪': 'sv', # Swedish
-    '🇳🇴': 'no', # Norwegian
-    '🇩🇰': 'da', # Danish
-    '🇫🇮': 'fi', # Finnish
-    '🇵🇱': 'pl', # Polish
-    '🇹🇷': 'tr', # Turkish
-}
 
 @app_commands.guild_only()
 class TranslationCog(commands.Cog, name="Translation"):
@@ -45,6 +19,8 @@ class TranslationCog(commands.Cog, name="Translation"):
         self.db = db_manager
         self.translator = translator
         self.usage = usage_manager
+        self.emoji_to_language_map: dict[str, str] = {}
+        self._load_flag_data()
 
         log.info("[TRANSLATION_COG] Initializing and adding 'Translate Message' context menu...")
         self.translate_message_menu = app_commands.ContextMenu(
@@ -54,25 +30,54 @@ class TranslationCog(commands.Cog, name="Translation"):
         self.bot.tree.add_command(self.translate_message_menu)
         log.info("[TRANSLATION_COG] 'Translate Message' context menu added to tree.")
 
+    def _load_flag_data(self):
+        """Loads flag data from flags.json and builds the emoji-to-language mapping."""
+        try:
+            # Construct the path to the data file
+            # Assumes the 'data' directory is at the root of the project
+            script_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            file_path = os.path.join(script_dir, 'data', 'flags.json')
+            
+            with open(file_path, 'r', encoding='utf-8') as f:
+                flag_data = json.load(f)
+
+            for _, data in flag_data.items():
+                country_code = data.get("countryCode")
+                languages = data.get("languages")
+                
+                # We need a valid country code and at least one language
+                if country_code and languages:
+                    emoji = country_code_to_flag(country_code)
+                    # Use the first language in the list as the target
+                    self.emoji_to_language_map[emoji] = languages[0]
+            
+            log.info(f"Successfully loaded {len(self.emoji_to_language_map)} flag-to-language mappings.")
+
+        except FileNotFoundError:
+            log.error("Could not find data/flags.json. Flag reaction translations will not work.")
+        except Exception as e:
+            log.error(f"Error loading flags.json: {e}", exc_info=True)
+
+
     def cog_unload(self):
         log.info("[TRANSLATION_COG] Unloading and removing 'Translate Message' context menu.")
         self.bot.tree.remove_command(self.translate_message_menu.name, type=self.translate_message_menu.type)
 
-    async def perform_translation(self, original_message_content: str, target_lang: str) -> str | None:
+    async def perform_translation(self, original_message_content: str, target_lang: str):
         if not self.translator.is_initialized:
             log.warning("Translation attempted but translator is not initialized.")
-            return "Translation service is currently unavailable."
+            return {"translated_text": "Translation service is currently unavailable.", "detected_language_code": "error"}
         
         if self.usage.check_limit_exceeded(len(original_message_content)):
             log.warning(f"Translation blocked: API usage limit of {self.usage.safe_limit} has been reached.")
-            return "The monthly translation limit has been reached. Please try again next month."
+            return {"translated_text": "The monthly translation limit has been reached. Please try again next month.", "detected_language_code": "error"}
         
-        translated_text = await self.translator.translate_text(original_message_content, target_lang)
+        translation_result = await self.translator.translate_text(original_message_content, target_lang)
 
-        if translated_text:
+        if translation_result and translation_result.get('translated_text'):
             await self.usage.record_usage(len(original_message_content))
         
-        return translated_text
+        return translation_result
 
     @app_commands.command(name="set_language", description="Set your preferred language for translations.")
     @app_commands.autocomplete(language=language_autocomplete)
@@ -101,17 +106,58 @@ class TranslationCog(commands.Cog, name="Translation"):
             )
 
     @commands.Cog.listener()
+    async def on_message(self, message: discord.Message):
+        """Listener for the auto-translate feature."""
+        # Ignore messages from bots, webhooks, DMs, or with no content
+        if message.author.bot or message.webhook_id or not message.guild or not message.content:
+            return
+
+        # Check if the channel is configured for auto-translation
+        config = await self.db.get_auto_translate_config(message.channel.id)
+        if not config:
+            return
+
+        log.info(f"Auto-translate triggered in channel {message.channel.id} for message {message.id}")
+        
+        target_lang = config['target_language_code']
+        
+        # Perform translation and get detected language
+        translation_result = await self.perform_translation(message.content, target_lang)
+
+        if not translation_result:
+            log.warning(f"Auto-translation failed for message {message.id}.")
+            return
+
+        translated_text = translation_result.get('translated_text')
+        detected_language = translation_result.get('detected_language_code')
+
+        # Do not translate if the detected language is the same as the target
+        if detected_language and detected_language.split('-')[0] == target_lang.split('-')[0]:
+            return
+            
+        if not translated_text:
+            return
+
+        # Post as a reply
+        await message.reply(
+            content=translated_text,
+            mention_author=False
+        )
+
+
+    @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
         if payload.user_id == self.bot.user.id or (payload.member and payload.member.bot):
             return
 
-        target_language = FLAG_TO_LANGUAGE.get(str(payload.emoji))
+        # Use the dynamically loaded map instead of the hardcoded one
+        target_language = self.emoji_to_language_map.get(str(payload.emoji))
         if not target_language:
             return
 
         try:
             channel = self.bot.get_channel(payload.channel_id)
-            if not isinstance(channel, discord.TextChannel): return
+            if not isinstance(channel, (discord.TextChannel, discord.Thread)): return
             message = await channel.fetch_message(payload.message_id)
         except (discord.NotFound, discord.Forbidden):
             return
@@ -119,33 +165,32 @@ class TranslationCog(commands.Cog, name="Translation"):
         if not message.content and not message.embeds:
             return
 
-        log.info(f"Flag reaction translation triggered by {payload.member.name} for language '{target_language}'.")
+        log.info(f"Flag reaction translation triggered by {payload.member.display_name if payload.member else 'Unknown User'} for language '{target_language}'.")
         
         async with channel.typing():
             translated_text = ""
             if message.content:
-                translated_text = await self.perform_translation(message.content, target_language)
+                translation_result = await self.perform_translation(message.content, target_language)
+                if translation_result:
+                    translated_text = translation_result.get('translated_text', '')
 
             translated_embeds = []
             if message.embeds:
                 for embed in message.embeds:
-                    # Call the static helper method from the HubManagerCog
                     translated_embed = await HubManagerCog._translate_embed(self.translator, embed, target_language)
                     translated_embeds.append(translated_embed)
             
-            # Send the reply with both text and embeds
-            # The API handles cases where one or the other is empty gracefully
-            await message.reply(
-                content=translated_text,
-                embeds=translated_embeds,
-                mention_author=False
-            )
+            if translated_text or translated_embeds:
+                await message.reply(
+                    content=translated_text,
+                    embeds=translated_embeds,
+                    mention_author=False
+                )
 
     async def translate_message_callback(self, interaction: discord.Interaction, message: discord.Message):
         """The actual logic for the 'Translate Message' context menu."""
         await interaction.response.defer(ephemeral=True)
 
-        # Check if there is anything at all to translate
         if not message.content and not message.embeds:
             await interaction.followup.send("This message has no text or embeds to translate.")
             return
@@ -155,19 +200,18 @@ class TranslationCog(commands.Cog, name="Translation"):
             await interaction.followup.send("I don't know your preferred language yet! Please use /set_language to set it up.", ephemeral=True)
             return
 
-        # --- NEW: Full translation logic for both text and embeds ---
         translated_text = ""
         if message.content:
-            translated_text = await self.perform_translation(message.content, target_language)
+            translation_result = await self.perform_translation(message.content, target_language)
+            if translation_result:
+                translated_text = translation_result.get('translated_text', '')
 
         translated_embeds = []
         if message.embeds:
             for embed in message.embeds:
-                # Call the static helper method from the HubManagerCog
                 translated_embed = await HubManagerCog._translate_embed(self.translator, embed, target_language)
                 translated_embeds.append(translated_embed)
 
-        # If we only have text, send a simple embed.
         if translated_text and not translated_embeds:
             reply_embed = discord.Embed(
                 title="Translation Result",
@@ -177,18 +221,12 @@ class TranslationCog(commands.Cog, name="Translation"):
             reply_embed.set_footer(text=f"Original message by {message.author.display_name}")
             await interaction.followup.send(embed=reply_embed)
         
-        # If we have embeds (with or without text), send them all.
         elif translated_embeds:
-            # Send the translated text first if it exists
             if translated_text:
-                await interaction.followup.send(translated_text)
-                # Use a subsequent followup for the embeds
-                await interaction.followup.send(embeds=translated_embeds)
+                await interaction.followup.send(translated_text, embeds=translated_embeds)
             else:
-                # If only embeds, send them in the first followup
                 await interaction.followup.send(embeds=translated_embeds)
         
-        # Handle case where text translation failed but there were no embeds
         elif not translated_text and message.content:
              await interaction.followup.send("An error occurred during translation. Please try again.", ephemeral=True)
 

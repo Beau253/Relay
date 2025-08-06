@@ -20,7 +20,7 @@ TABLE_CREATION_SQL = {
             guild_id BIGINT NOT NULL,
             language_code TEXT NOT NULL,
             creator_id BIGINT NOT NULL,
-            expires_at TIMESTAMPTZ NOT NULL,
+            expires_at TIMESTAMPTZ,
             warning_sent BOOLEAN DEFAULT FALSE,
             is_archived BOOLEAN DEFAULT FALSE
         );
@@ -45,8 +45,18 @@ TABLE_CREATION_SQL = {
             language_setup_role_id BIGINT,
             main_language_code TEXT DEFAULT 'en'
         );
+    """,
+    'auto_translate_channels': """
+        CREATE TABLE IF NOT EXISTS auto_translate_channels (
+            channel_id BIGINT PRIMARY KEY,
+            guild_id BIGINT NOT NULL,
+            target_language_code TEXT NOT NULL,
+            impersonate BOOLEAN DEFAULT TRUE
+        );
     """
 }
+
+
 
 # --- DatabaseManager Class ---
 class DatabaseManager:
@@ -197,7 +207,7 @@ class DatabaseManager:
             log.error(f"Error fetching hubs needing warning: {e}")
             return []
 
-    async def update_hub_expiry(self, thread_id: int, new_expires_at: datetime) -> bool:
+    async def update_hub_expiry(self, thread_id: int, new_expires_at: Optional[datetime]) -> bool:
         """Updates the expiration time of a hub and resets warning status."""
         if not self.pool: return False
         try:
@@ -319,3 +329,49 @@ class DatabaseManager:
         except Exception as e:
             log.error(f"Error fetching guild config for guild {guild_id}: {e}")
             return None
+
+    # --- Auto-Translate Channel Methods ---
+    async def set_auto_translate_channel(self, channel_id: int, guild_id: int, target_language_code: str, impersonate: bool):
+        """Sets or updates an auto-translate configuration for a channel."""
+        if not self.pool: return
+        try:
+            async with self.pool.acquire() as conn:
+                query = """
+                    INSERT INTO auto_translate_channels (channel_id, guild_id, target_language_code, impersonate)
+                    VALUES ($1, $2, $3, $4)
+                    ON CONFLICT (channel_id) DO UPDATE
+                    SET target_language_code = EXCLUDED.target_language_code,
+                        impersonate = EXCLUDED.impersonate;
+                """
+                await conn.execute(query, channel_id, guild_id, target_language_code, impersonate)
+        except Exception as e:
+            log.error(f"Error setting auto-translate channel for {channel_id}: {e}")
+
+    async def remove_auto_translate_channel(self, channel_id: int):
+        """Removes the auto-translate configuration for a channel."""
+        if not self.pool: return
+        try:
+            async with self.pool.acquire() as conn:
+                await conn.execute("DELETE FROM auto_translate_channels WHERE channel_id = $1;", channel_id)
+        except Exception as e:
+            log.error(f"Error removing auto-translate channel for {channel_id}: {e}")
+
+    async def get_auto_translate_config(self, channel_id: int) -> Optional[asyncpg.Record]:
+        """Gets the auto-translate configuration for a specific channel."""
+        if not self.pool: return None
+        try:
+            async with self.pool.acquire() as conn:
+                return await conn.fetchrow("SELECT * FROM auto_translate_channels WHERE channel_id = $1;", channel_id)
+        except Exception as e:
+            log.error(f"Error fetching auto-translate config for channel {channel_id}: {e}")
+            return None
+    
+    async def get_all_auto_translate_configs_for_guild(self, guild_id: int) -> List[asyncpg.Record]:
+        """Retrieves all auto-translate configurations for a guild."""
+        if not self.pool: return []
+        try:
+            async with self.pool.acquire() as conn:
+                return await conn.fetch("SELECT * FROM auto_translate_channels WHERE guild_id = $1;", guild_id)
+        except Exception as e:
+            log.error(f"Error fetching all auto-translate configs for guild {guild_id}: {e}")
+            return []

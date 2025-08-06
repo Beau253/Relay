@@ -1,0 +1,1317 @@
+{
+  ":flag_ac:": {
+    "countryCode": "AC",
+    "countryName": "Ascension Island",
+    "languages": ["en"]
+  },
+  ":flag_ad:": {
+    "countryCode": "AD",
+    "countryName": "Andorra",
+    "languages": ["ca"]
+  },
+  ":flag_ae:": {
+    "countryCode": "AE",
+    "countryName": "United Arab Emirates",
+    "languages": ["ar"]
+  },
+  ":flag_af:": {
+    "countryCode": "AF",
+    "countryName": "Afghanistan",
+    "languages": ["ps", "fa"]
+  },
+  ":flag_ag:": {
+    "countryCode": "AG",
+    "countryName": "Antigua & Barbuda",
+    "languages": ["en"]
+  },
+  ":flag_ai:": {
+    "countryCode": "AI",
+    "countryName": "Anguilla",
+    "languages": ["en"]
+  },
+  ":flag_al:": {
+    "countryCode": "AL",
+    "countryName": "Albania",
+    "languages": ["sq"]
+  },
+  ":flag_am:": {
+    "countryCode": "AM",
+    "countryName": "Armenia",
+    "languages": ["hy"]
+  },
+  ":flag_ao:": {
+    "countryCode": "AO",
+    "countryName": "Angola",
+    "languages": ["pt"]
+  },
+  ":flag_aq:": {
+    "countryCode": "AQ",
+    "countryName": "Antarctica",
+    "languages": []
+  },
+  ":flag_ar:": {
+    "countryCode": "AR",
+    "countryName": "Argentina",
+    "languages": ["es"]
+  },
+  ":flag_as:": {
+    "countryCode": "AS",
+    "countryName": "American Samoa",
+    "languages": ["en", "sm"]
+  },
+  ":flag_at:": {
+    "countryCode": "AT",
+    "countryName": "Austria",
+    "languages": ["de"]
+  },
+  ":flag_au:": {
+    "countryCode": "AU",
+    "countryName": "Australia",
+    "languages": ["en"]
+  },
+  ":flag_aw:": {
+    "countryCode": "AW",
+    "countryName": "Aruba",
+    "languages": ["nl", "pap"]
+  },
+  ":flag_ax:": {
+    "countryCode": "AX",
+    "countryName": "Åland Islands",
+    "languages": ["sv"]
+  },
+  ":flag_az:": {
+    "countryCode": "AZ",
+    "countryName": "Azerbaijan",
+    "languages": ["az"]
+  },
+  ":flag_ba:": {
+    "countryCode": "BA",
+    "countryName": "Bosnia & Herzegovina",
+    "languages": ["bs", "hr", "sr"]
+  },
+  ":flag_bb:": {
+    "countryCode": "BB",
+    "countryName": "Barbados",
+    "languages": ["en"]
+  },
+  ":flag_bd:": {
+    "countryCode": "BD",
+    "countryName": "Bangladesh",
+    "languages": ["bn"]
+  },
+  ":flag_be:": {
+    "countryCode": "BE",
+    "countryName": "Belgium",
+    "languages": ["nl", "fr", "de"]
+  },
+  ":flag_bf:": {
+    "countryCode": "BF",
+    "countryName": "Burkina Faso",
+    "languages": ["fr"]
+  },
+  ":flag_bg:": {
+    "countryCode": "BG",
+    "countryName": "Bulgaria",
+    "languages": ["bg"]
+  },
+  ":flag_bh:": {
+    "countryCode": "BH",
+    "countryName": "Bahrain",
+    "languages": ["ar"]
+  },
+  ":flag_bi:": {
+    "countryCode": "BI",
+    "countryName": "Burundi",
+    "languages": ["fr", "rn"]
+  },
+  ":flag_bj:": {
+    "countryCode": "BJ",
+    "countryName": "Benin",
+    "languages": ["fr"]
+  },
+  ":flag_bl:": {
+    "countryCode": "BL",
+    "countryName": "St. Barthélemy",
+    "languages": ["fr"]
+  },
+  ":flag_bm:": {
+    "countryCode": "BM",
+    "countryName": "Bermuda",
+    "languages": ["en"]
+  },
+  ":flag_bn:": {
+    "countryCode": "BN",
+    "countryName": "Brunei",
+    "languages": ["ms"]
+  },
+  ":flag_bo:": {
+    "countryCode": "BO",
+    "countryName": "Bolivia",
+    "languages": ["es", "qu", "ay"]
+  },
+  ":flag_br:": {
+    "countryCode": "BR",
+    "countryName": "Brazil",
+    "languages": ["pt"]
+  },
+  ":flag_bs:": {
+    "countryCode": "BS",
+    "countryName": "Bahamas",
+    "languages": ["en"]
+  },
+  ":flag_bt:": {
+    "countryCode": "BT",
+    "countryName": "Bhutan",
+    "languages": ["dz"]
+  },
+  ":flag_bv:": {
+    "countryCode": "BV",
+    "countryName": "Bouvet Island",
+    "languages": []
+  },
+  ":flag_bw:": {
+    "countryCode": "BW",
+    "countryName": "Botswana",
+    "languages": ["en", "tn"]
+  },
+  ":flag_by:": {
+    "countryCode": "BY",
+    "countryName": "Belarus",
+    "languages": ["be", "ru"]
+  },
+  ":flag_bz:": {
+    "countryCode": "BZ",
+    "countryName": "Belize",
+    "languages": ["en"]
+  },
+  ":flag_ca:": {
+    "countryCode": "CA",
+    "countryName": "Canada",
+    "languages": ["en", "fr"]
+  },
+  ":flag_cc:": {
+    "countryCode": "CC",
+    "countryName": "Cocos (Keeling) Islands",
+    "languages": ["en"]
+  },
+  ":flag_cd:": {
+    "countryCode": "CD",
+    "countryName": "Congo - Kinshasa",
+    "languages": ["fr", "ln", "kg", "sw", "lu"]
+  },
+  ":flag_cf:": {
+    "countryCode": "CF",
+    "countryName": "Central African Republic",
+    "languages": ["fr", "sg"]
+  },
+  ":flag_cg:": {
+    "countryCode": "CG",
+    "countryName": "Congo - Brazzaville",
+    "languages": ["fr", "ln"]
+  },
+  ":flag_ch:": {
+    "countryCode": "CH",
+    "countryName": "Switzerland",
+    "languages": ["de", "fr", "it"]
+  },
+  ":flag_ci:": {
+    "countryCode": "CI",
+    "countryName": "Côte d’Ivoire",
+    "languages": ["fr"]
+  },
+  ":flag_ck:": {
+    "countryCode": "CK",
+    "countryName": "Cook Islands",
+    "languages": ["en", "rar"]
+  },
+  ":flag_cl:": {
+    "countryCode": "CL",
+    "countryName": "Chile",
+    "languages": ["es"]
+  },
+  ":flag_cm:": {
+    "countryCode": "CM",
+    "countryName": "Cameroon",
+    "languages": ["fr", "en"]
+  },
+  ":flag_cn:": {
+    "countryCode": "CN",
+    "countryName": "China",
+    "languages": ["zh"]
+  },
+  ":flag_co:": {
+    "countryCode": "CO",
+    "countryName": "Colombia",
+    "languages": ["es"]
+  },
+  ":flag_cp:": {
+    "countryCode": "CP",
+    "countryName": "Clipperton Island",
+    "languages": ["fr"]
+  },
+  ":flag_cr:": {
+    "countryCode": "CR",
+    "countryName": "Costa Rica",
+    "languages": ["es"]
+  },
+  ":flag_cu:": {
+    "countryCode": "CU",
+    "countryName": "Cuba",
+    "languages": ["es"]
+  },
+  ":flag_cv:": {
+    "countryCode": "CV",
+    "countryName": "Cape Verde",
+    "languages": ["pt"]
+  },
+  ":flag_cw:": {
+    "countryCode": "CW",
+    "countryName": "Curaçao",
+    "languages": ["nl", "pap", "en"]
+  },
+  ":flag_cx:": {
+    "countryCode": "CX",
+    "countryName": "Christmas Island",
+    "languages": ["en"]
+  },
+  ":flag_cy:": {
+    "countryCode": "CY",
+    "countryName": "Cyprus",
+    "languages": ["el", "tr"]
+  },
+  ":flag_cz:": {
+    "countryCode": "CZ",
+    "countryName": "Czechia",
+    "languages": ["cs"]
+  },
+  ":flag_de:": {
+    "countryCode": "DE",
+    "countryName": "Germany",
+    "languages": ["de"]
+  },
+  ":flag_dg:": {
+    "countryCode": "DG",
+    "countryName": "Diego Garcia",
+    "languages": ["en"]
+  },
+  ":flag_dj:": {
+    "countryCode": "DJ",
+    "countryName": "Djibouti",
+    "languages": ["fr", "ar"]
+  },
+  ":flag_dk:": {
+    "countryCode": "DK",
+    "countryName": "Denmark",
+    "languages": ["da"]
+  },
+  ":flag_dm:": {
+    "countryCode": "DM",
+    "countryName": "Dominica",
+    "languages": ["en"]
+  },
+  ":flag_do:": {
+    "countryCode": "DO",
+    "countryName": "Dominican Republic",
+    "languages": ["es"]
+  },
+  ":flag_dz:": {
+    "countryCode": "DZ",
+    "countryName": "Algeria",
+    "languages": ["ar"]
+  },
+  ":flag_ea:": {
+    "countryCode": "EA",
+    "countryName": "Ceuta & Melilla",
+    "languages": ["es"]
+  },
+  ":flag_ec:": {
+    "countryCode": "EC",
+    "countryName": "Ecuador",
+    "languages": ["es"]
+  },
+  ":flag_ee:": {
+    "countryCode": "EE",
+    "countryName": "Estonia",
+    "languages": ["et"]
+  },
+  ":flag_eg:": {
+    "countryCode": "EG",
+    "countryName": "Egypt",
+    "languages": ["ar"]
+  },
+  ":flag_eh:": {
+    "countryCode": "EH",
+    "countryName": "Western Sahara",
+    "languages": ["ar", "es"]
+  },
+  ":flag_er:": {
+    "countryCode": "ER",
+    "countryName": "Eritrea",
+    "languages": ["ti", "ar", "en"]
+  },
+  ":flag_es:": {
+    "countryCode": "ES",
+    "countryName": "Spain",
+    "languages": ["es", "ca", "gl", "eu"]
+  },
+  ":flag_et:": {
+    "countryCode": "ET",
+    "countryName": "Ethiopia",
+    "languages": ["am"]
+  },
+  ":flag_eu:": {
+    "countryCode": "EU",
+    "countryName": "European Union",
+    "languages": ["en", "fr", "de", "it", "es", "pl", "nl"]
+  },
+  ":flag_fi:": {
+    "countryCode": "FI",
+    "countryName": "Finland",
+    "languages": ["fi", "sv"]
+  },
+  ":flag_fj:": {
+    "countryCode": "FJ",
+    "countryName": "Fiji",
+    "languages": ["en", "fj"]
+  },
+  ":flag_fk:": {
+    "countryCode": "FK",
+    "countryName": "Falkland Islands",
+    "languages": ["en"]
+  },
+  ":flag_fm:": {
+    "countryCode": "FM",
+    "countryName": "Micronesia",
+    "languages": ["en"]
+  },
+  ":flag_fo:": {
+    "countryCode": "FO",
+    "countryName": "Faroe Islands",
+    "languages": ["fo", "da"]
+  },
+  ":flag_fr:": {
+    "countryCode": "FR",
+    "countryName": "France",
+    "languages": ["fr"]
+  },
+  ":flag_ga:": {
+    "countryCode": "GA",
+    "countryName": "Gabon",
+    "languages": ["fr"]
+  },
+  ":flag_gb:": {
+    "countryCode": "GB",
+    "countryName": "United Kingdom",
+    "languages": ["en"]
+  },
+  ":flag_gb-eng:": {
+    "countryCode": "GB-ENG",
+    "countryName": "England",
+    "languages": ["en"]
+  },
+  ":flag_gb-sct:": {
+    "countryCode": "GB-SCT",
+    "countryName": "Scotland",
+    "languages": ["en", "gd"]
+  },
+  ":flag_gb-wls:": {
+    "countryCode": "GB-WLS",
+    "countryName": "Wales",
+    "languages": ["en", "cy"]
+  },
+  ":flag_gd:": {
+    "countryCode": "GD",
+    "countryName": "Grenada",
+    "languages": ["en"]
+  },
+  ":flag_ge:": {
+    "countryCode": "GE",
+    "countryName": "Georgia",
+    "languages": ["ka"]
+  },
+  ":flag_gf:": {
+    "countryCode": "GF",
+    "countryName": "French Guiana",
+    "languages": ["fr"]
+  },
+  ":flag_gg:": {
+    "countryCode": "GG",
+    "countryName": "Guernsey",
+    "languages": ["en", "fr"]
+  },
+  ":flag_gh:": {
+    "countryCode": "GH",
+    "countryName": "Ghana",
+    "languages": ["en"]
+  },
+  ":flag_gi:": {
+    "countryCode": "GI",
+    "countryName": "Gibraltar",
+    "languages": ["en"]
+  },
+  ":flag_gl:": {
+    "countryCode": "GL",
+    "countryName": "Greenland",
+    "languages": ["kl"]
+  },
+  ":flag_gm:": {
+    "countryCode": "GM",
+    "countryName": "Gambia",
+    "languages": ["en"]
+  },
+  ":flag_gn:": {
+    "countryCode": "GN",
+    "countryName": "Guinea",
+    "languages": ["fr"]
+  },
+  ":flag_gp:": {
+    "countryCode": "GP",
+    "countryName": "Guadeloupe",
+    "languages": ["fr"]
+  },
+  ":flag_gq:": {
+    "countryCode": "GQ",
+    "countryName": "Equatorial Guinea",
+    "languages": ["es", "fr", "pt"]
+  },
+  ":flag_gr:": {
+    "countryCode": "GR",
+    "countryName": "Greece",
+    "languages": ["el"]
+  },
+  ":flag_gs:": {
+    "countryCode": "GS",
+    "countryName": "South Georgia & South Sandwich Islands",
+    "languages": ["en"]
+  },
+  ":flag_gt:": {
+    "countryCode": "GT",
+    "countryName": "Guatemala",
+    "languages": ["es"]
+  },
+  ":flag_gu:": {
+    "countryCode": "GU",
+    "countryName": "Guam",
+    "languages": ["en", "ch"]
+  },
+  ":flag_gw:": {
+    "countryCode": "GW",
+    "countryName": "Guinea-Bissau",
+    "languages": ["pt"]
+  },
+  ":flag_gy:": {
+    "countryCode": "GY",
+    "countryName": "Guyana",
+    "languages": ["en"]
+  },
+  ":flag_hk:": {
+    "countryCode": "HK",
+    "countryName": "Hong Kong SAR China",
+    "languages": ["zh", "en"]
+  },
+  ":flag_hm:": {
+    "countryCode": "HM",
+    "countryName": "Heard & McDonald Islands",
+    "languages": ["en"]
+  },
+  ":flag_hn:": {
+    "countryCode": "HN",
+    "countryName": "Honduras",
+    "languages": ["es"]
+  },
+  ":flag_hr:": {
+    "countryCode": "HR",
+    "countryName": "Croatia",
+    "languages": ["hr"]
+  },
+  ":flag_ht:": {
+    "countryCode": "HT",
+    "countryName": "Haiti",
+    "languages": ["fr", "ht"]
+  },
+  ":flag_hu:": {
+    "countryCode": "HU",
+    "countryName": "Hungary",
+    "languages": ["hu"]
+  },
+  ":flag_ic:": {
+    "countryCode": "IC",
+    "countryName": "Canary Islands",
+    "languages": ["es"]
+  },
+  ":flag_id:": {
+    "countryCode": "ID",
+    "countryName": "Indonesia",
+    "languages": ["id"]
+  },
+  ":flag_ie:": {
+    "countryCode": "IE",
+    "countryName": "Ireland",
+    "languages": ["en", "ga"]
+  },
+  ":flag_il:": {
+    "countryCode": "IL",
+    "countryName": "Israel",
+    "languages": ["he", "ar"]
+  },
+  ":flag_im:": {
+    "countryCode": "IM",
+    "countryName": "Isle of Man",
+    "languages": ["en", "gv"]
+  },
+  ":flag_in:": {
+    "countryCode": "IN",
+    "countryName": "India",
+    "languages": ["hi", "en"]
+  },
+  ":flag_io:": {
+    "countryCode": "IO",
+    "countryName": "British Indian Ocean Territory",
+    "languages": ["en"]
+  },
+  ":flag_iq:": {
+    "countryCode": "IQ",
+    "countryName": "Iraq",
+    "languages": ["ar", "ku"]
+  },
+  ":flag_ir:": {
+    "countryCode": "IR",
+    "countryName": "Iran",
+    "languages": ["fa"]
+  },
+  ":flag_is:": {
+    "countryCode": "IS",
+    "countryName": "Iceland",
+    "languages": ["is"]
+  },
+  ":flag_it:": {
+    "countryCode": "IT",
+    "countryName": "Italy",
+    "languages": ["it"]
+  },
+  ":flag_je:": {
+    "countryCode": "JE",
+    "countryName": "Jersey",
+    "languages": ["en", "fr"]
+  },
+  ":flag_jm:": {
+    "countryCode": "JM",
+    "countryName": "Jamaica",
+    "languages": ["en"]
+  },
+  ":flag_jo:": {
+    "countryCode": "JO",
+    "countryName": "Jordan",
+    "languages": ["ar"]
+  },
+  ":flag_jp:": {
+    "countryCode": "JP",
+    "countryName": "Japan",
+    "languages": ["ja"]
+  },
+  ":flag_ke:": {
+    "countryCode": "KE",
+    "countryName": "Kenya",
+    "languages": ["en", "sw"]
+  },
+  ":flag_kg:": {
+    "countryCode": "KG",
+    "countryName": "Kyrgyzstan",
+    "languages": ["ky", "ru"]
+  },
+  ":flag_kh:": {
+    "countryCode": "KH",
+    "countryName": "Cambodia",
+    "languages": ["km"]
+  },
+  ":flag_ki:": {
+    "countryCode": "KI",
+    "countryName": "Kiribati",
+    "languages": ["en", "gil"]
+  },
+  ":flag_km:": {
+    "countryCode": "KM",
+    "countryName": "Comoros",
+    "languages": ["ar", "fr"]
+  },
+  ":flag_kn:": {
+    "countryCode": "KN",
+    "countryName": "St. Kitts & Nevis",
+    "languages": ["en"]
+  },
+  ":flag_kp:": {
+    "countryCode": "KP",
+    "countryName": "North Korea",
+    "languages": ["ko"]
+  },
+  ":flag_kr:": {
+    "countryCode": "KR",
+    "countryName": "South Korea",
+    "languages": ["ko"]
+  },
+  ":flag_kw:": {
+    "countryCode": "KW",
+    "countryName": "Kuwait",
+    "languages": ["ar"]
+  },
+  ":flag_ky:": {
+    "countryCode": "KY",
+    "countryName": "Cayman Islands",
+    "languages": ["en"]
+  },
+  ":flag_kz:": {
+    "countryCode": "KZ",
+    "countryName": "Kazakhstan",
+    "languages": ["kk", "ru"]
+  },
+  ":flag_la:": {
+    "countryCode": "LA",
+    "countryName": "Laos",
+    "languages": ["lo"]
+  },
+  ":flag_lb:": {
+    "countryCode": "LB",
+    "countryName": "Lebanon",
+    "languages": ["ar"]
+  },
+  ":flag_lc:": {
+    "countryCode": "LC",
+    "countryName": "St. Lucia",
+    "languages": ["en"]
+  },
+  ":flag_li:": {
+    "countryCode": "LI",
+    "countryName": "Liechtenstein",
+    "languages": ["de"]
+  },
+  ":flag_lk:": {
+    "countryCode": "LK",
+    "countryName": "Sri Lanka",
+    "languages": ["si", "ta"]
+  },
+  ":flag_lr:": {
+    "countryCode": "LR",
+    "countryName": "Liberia",
+    "languages": ["en"]
+  },
+  ":flag_ls:": {
+    "countryCode": "LS",
+    "countryName": "Lesotho",
+    "languages": ["en", "st"]
+  },
+  ":flag_lt:": {
+    "countryCode": "LT",
+    "countryName": "Lithuania",
+    "languages": ["lt"]
+  },
+  ":flag_lu:": {
+    "countryCode": "LU",
+    "countryName": "Luxembourg",
+    "languages": ["fr", "de", "lb"]
+  },
+  ":flag_lv:": {
+    "countryCode": "LV",
+    "countryName": "Latvia",
+    "languages": ["lv"]
+  },
+  ":flag_ly:": {
+    "countryCode": "LY",
+    "countryName": "Libya",
+    "languages": ["ar"]
+  },
+  ":flag_ma:": {
+    "countryCode": "MA",
+    "countryName": "Morocco",
+    "languages": ["ar", "ber"]
+  },
+  ":flag_mc:": {
+    "countryCode": "MC",
+    "countryName": "Monaco",
+    "languages": ["fr"]
+  },
+  ":flag_md:": {
+    "countryCode": "MD",
+    "countryName": "Moldova",
+    "languages": ["ro"]
+  },
+  ":flag_me:": {
+    "countryCode": "ME",
+    "countryName": "Montenegro",
+    "languages": ["sr"]
+  },
+  ":flag_mf:": {
+    "countryCode": "MF",
+    "countryName": "St. Martin",
+    "languages": ["fr"]
+  },
+  ":flag_mg:": {
+    "countryCode": "MG",
+    "countryName": "Madagascar",
+    "languages": ["fr", "mg"]
+  },
+  ":flag_mh:": {
+    "countryCode": "MH",
+    "countryName": "Marshall Islands",
+    "languages": ["en", "mh"]
+  },
+  ":flag_mk:": {
+    "countryCode": "MK",
+    "countryName": "North Macedonia",
+    "languages": ["mk"]
+  },
+  ":flag_ml:": {
+    "countryCode": "ML",
+    "countryName": "Mali",
+    "languages": ["fr"]
+  },
+  ":flag_mm:": {
+    "countryCode": "MM",
+    "countryName": "Myanmar (Burma)",
+    "languages": ["my"]
+  },
+  ":flag_mn:": {
+    "countryCode": "MN",
+    "countryName": "Mongolia",
+    "languages": ["mn"]
+  },
+  ":flag_mo:": {
+    "countryCode": "MO",
+    "countryName": "Macau SAR China",
+    "languages": ["zh", "pt"]
+  },
+  ":flag_mp:": {
+    "countryCode": "MP",
+    "countryName": "Northern Mariana Islands",
+    "languages": ["en", "ch"]
+  },
+  ":flag_mq:": {
+    "countryCode": "MQ",
+    "countryName": "Martinique",
+    "languages": ["fr"]
+  },
+  ":flag_mr:": {
+    "countryCode": "MR",
+    "countryName": "Mauritania",
+    "languages": ["ar"]
+  },
+  ":flag_ms:": {
+    "countryCode": "MS",
+    "countryName": "Montserrat",
+    "languages": ["en"]
+  },
+  ":flag_mt:": {
+    "countryCode": "MT",
+    "countryName": "Malta",
+    "languages": ["mt", "en"]
+  },
+  ":flag_mu:": {
+    "countryCode": "MU",
+    "countryName": "Mauritius",
+    "languages": ["en", "fr"]
+  },
+  ":flag_mv:": {
+    "countryCode": "MV",
+    "countryName": "Maldives",
+    "languages": ["dv"]
+  },
+  ":flag_mw:": {
+    "countryCode": "MW",
+    "countryName": "Malawi",
+    "languages": ["en", "ny"]
+  },
+  ":flag_mx:": {
+    "countryCode": "MX",
+    "countryName": "Mexico",
+    "languages": ["es"]
+  },
+  ":flag_my:": {
+    "countryCode": "MY",
+    "countryName": "Malaysia",
+    "languages": ["ms"]
+  },
+  ":flag_mz:": {
+    "countryCode": "MZ",
+    "countryName": "Mozambique",
+    "languages": ["pt"]
+  },
+  ":flag_na:": {
+    "countryCode": "NA",
+    "countryName": "Namibia",
+    "languages": ["en"]
+  },
+  ":flag_nc:": {
+    "countryCode": "NC",
+    "countryName": "New Caledonia",
+    "languages": ["fr"]
+  },
+  ":flag_ne:": {
+    "countryCode": "NE",
+    "countryName": "Niger",
+    "languages": ["fr"]
+  },
+  ":flag_nf:": {
+    "countryCode": "NF",
+    "countryName": "Norfolk Island",
+    "languages": ["en"]
+  },
+  ":flag_ng:": {
+    "countryCode": "NG",
+    "countryName": "Nigeria",
+    "languages": ["en"]
+  },
+  ":flag_ni:": {
+    "countryCode": "NI",
+    "countryName": "Nicaragua",
+    "languages": ["es"]
+  },
+  ":flag_nl:": {
+    "countryCode": "NL",
+    "countryName": "Netherlands",
+    "languages": ["nl"]
+  },
+  ":flag_no:": {
+    "countryCode": "NO",
+    "countryName": "Norway",
+    "languages": ["no", "nb", "nn"]
+  },
+  ":flag_np:": {
+    "countryCode": "NP",
+    "countryName": "Nepal",
+    "languages": ["ne"]
+  },
+  ":flag_nr:": {
+    "countryCode": "NR",
+    "countryName": "Nauru",
+    "languages": ["en", "na"]
+  },
+  ":flag_nu:": {
+    "countryCode": "NU",
+    "countryName": "Niue",
+    "languages": ["en", "niu"]
+  },
+  ":flag_nz:": {
+    "countryCode": "NZ",
+    "countryName": "New Zealand",
+    "languages": ["en", "mi"]
+  },
+  ":flag_om:": {
+    "countryCode": "OM",
+    "countryName": "Oman",
+    "languages": ["ar"]
+  },
+  ":flag_pa:": {
+    "countryCode": "PA",
+    "countryName": "Panama",
+    "languages": ["es"]
+  },
+  ":flag_pe:": {
+    "countryCode": "PE",
+    "countryName": "Peru",
+    "languages": ["es"]
+  },
+  ":flag_pf:": {
+    "countryCode": "PF",
+    "countryName": "French Polynesia",
+    "languages": ["fr"]
+  },
+  ":flag_pg:": {
+    "countryCode": "PG",
+    "countryName": "Papua New Guinea",
+    "languages": ["en", "tpi", "ho"]
+  },
+  ":flag_ph:": {
+    "countryCode": "PH",
+    "countryName": "Philippines",
+    "languages": ["en", "tl"]
+  },
+  ":flag_pk:": {
+    "countryCode": "PK",
+    "countryName": "Pakistan",
+    "languages": ["en", "ur"]
+  },
+  ":flag_pl:": {
+    "countryCode": "PL",
+    "countryName": "Poland",
+    "languages": ["pl"]
+  },
+  ":flag_pm:": {
+    "countryCode": "PM",
+    "countryName": "St. Pierre & Miquelon",
+    "languages": ["fr"]
+  },
+  ":flag_pn:": {
+    "countryCode": "PN",
+    "countryName": "Pitcairn Islands",
+    "languages": ["en"]
+  },
+  ":flag_pr:": {
+    "countryCode": "PR",
+    "countryName": "Puerto Rico",
+    "languages": ["es", "en"]
+  },
+  ":flag_ps:": {
+    "countryCode": "PS",
+    "countryName": "Palestinian Territories",
+    "languages": ["ar"]
+  },
+  ":flag_pt:": {
+    "countryCode": "PT",
+    "countryName": "Portugal",
+    "languages": ["pt"]
+  },
+  ":flag_pw:": {
+    "countryCode": "PW",
+    "countryName": "Palau",
+    "languages": ["en", "pau"]
+  },
+  ":flag_py:": {
+    "countryCode": "PY",
+    "countryName": "Paraguay",
+    "languages": ["es", "gn"]
+  },
+  ":flag_qa:": {
+    "countryCode": "QA",
+    "countryName": "Qatar",
+    "languages": ["ar"]
+  },
+  ":flag_re:": {
+    "countryCode": "RE",
+    "countryName": "Réunion",
+    "languages": ["fr"]
+  },
+  ":flag_ro:": {
+    "countryCode": "RO",
+    "countryName": "Romania",
+    "languages": ["ro"]
+  },
+  ":flag_rs:": {
+    "countryCode": "RS",
+    "countryName": "Serbia",
+    "languages": ["sr"]
+  },
+  ":flag_ru:": {
+    "countryCode": "RU",
+    "countryName": "Russia",
+    "languages": ["ru"]
+  },
+  ":flag_rw:": {
+    "countryCode": "RW",
+    "countryName": "Rwanda",
+    "languages": ["rw", "en", "fr", "sw"]
+  },
+  ":flag_sa:": {
+    "countryCode": "SA",
+    "countryName": "Saudi Arabia",
+    "languages": ["ar"]
+  },
+  ":flag_sb:": {
+    "countryCode": "SB",
+    "countryName": "Solomon Islands",
+    "languages": ["en"]
+  },
+  ":flag_sc:": {
+    "countryCode": "SC",
+    "countryName": "Seychelles",
+    "languages": ["en", "fr", "crs"]
+  },
+  ":flag_sd:": {
+    "countryCode": "SD",
+    "countryName": "Sudan",
+    "languages": ["ar", "en"]
+  },
+  ":flag_se:": {
+    "countryCode": "SE",
+    "countryName": "Sweden",
+    "languages": ["sv"]
+  },
+  ":flag_sg:": {
+    "countryCode": "SG",
+    "countryName": "Singapore",
+    "languages": ["en", "ms", "zh", "ta"]
+  },
+  ":flag_sh:": {
+    "countryCode": "SH",
+    "countryName": "St. Helena",
+    "languages": ["en"]
+  },
+  ":flag_si:": {
+    "countryCode": "SI",
+    "countryName": "Slovenia",
+    "languages": ["sl"]
+  },
+  ":flag_sj:": {
+    "countryCode": "SJ",
+    "countryName": "Svalbard & Jan Mayen",
+    "languages": ["no"]
+  },
+  ":flag_sk:": {
+    "countryCode": "SK",
+    "countryName": "Slovakia",
+    "languages": ["sk"]
+  },
+  ":flag_sl:": {
+    "countryCode": "SL",
+    "countryName": "Sierra Leone",
+    "languages": ["en"]
+  },
+  ":flag_sm:": {
+    "countryCode": "SM",
+    "countryName": "San Marino",
+    "languages": ["it"]
+  },
+  ":flag_sn:": {
+    "countryCode": "SN",
+    "countryName": "Senegal",
+    "languages": ["fr"]
+  },
+  ":flag_so:": {
+    "countryCode": "SO",
+    "countryName": "Somalia",
+    "languages": ["so", "ar"]
+  },
+  ":flag_sr:": {
+    "countryCode": "SR",
+    "countryName": "Suriname",
+    "languages": ["nl"]
+  },
+  ":flag_ss:": {
+    "countryCode": "SS",
+    "countryName": "South Sudan",
+    "languages": ["en"]
+  },
+  ":flag_st:": {
+    "countryCode": "ST",
+    "countryName": "São Tomé & Príncipe",
+    "languages": ["pt"]
+  },
+  ":flag_sv:": {
+    "countryCode": "SV",
+    "countryName": "El Salvador",
+    "languages": ["es"]
+  },
+  ":flag_sx:": {
+    "countryCode": "SX",
+    "countryName": "Sint Maarten",
+    "languages": ["nl", "en"]
+  },
+  ":flag_sy:": {
+    "countryCode": "SY",
+    "countryName": "Syria",
+    "languages": ["ar"]
+  },
+  ":flag_sz:": {
+    "countryCode": "SZ",
+    "countryName": "Eswatini",
+    "languages": ["en", "ss"]
+  },
+  ":flag_ta:": {
+    "countryCode": "TA",
+    "countryName": "Tristan da Cunha",
+    "languages": ["en"]
+  },
+  ":flag_tc:": {
+    "countryCode": "TC",
+    "countryName": "Turks & Caicos Islands",
+    "languages": ["en"]
+  },
+  ":flag_td:": {
+    "countryCode": "TD",
+    "countryName": "Chad",
+    "languages": ["fr", "ar"]
+  },
+  ":flag_tf:": {
+    "countryCode": "TF",
+    "countryName": "French Southern Territories",
+    "languages": ["fr"]
+  },
+  ":flag_tg:": {
+    "countryCode": "TG",
+    "countryName": "Togo",
+    "languages": ["fr"]
+  },
+  ":flag_th:": {
+    "countryCode": "TH",
+    "countryName": "Thailand",
+    "languages": ["th"]
+  },
+  ":flag_tj:": {
+    "countryCode": "TJ",
+    "countryName": "Tajikistan",
+    "languages": ["tg", "ru"]
+  },
+  ":flag_tk:": {
+    "countryCode": "TK",
+    "countryName": "Tokelau",
+    "languages": ["tkl", "en"]
+  },
+  ":flag_tl:": {
+    "countryCode": "TL",
+    "countryName": "Timor-Leste",
+    "languages": ["pt", "tet"]
+  },
+  ":flag_tm:": {
+    "countryCode": "TM",
+    "countryName": "Turkmenistan",
+    "languages": ["tk"]
+  },
+  ":flag_tn:": {
+    "countryCode": "TN",
+    "countryName": "Tunisia",
+    "languages": ["ar"]
+  },
+  ":flag_to:": {
+    "countryCode": "TO",
+    "countryName": "Tonga",
+    "languages": ["to", "en"]
+  },
+  ":flag_tr:": {
+    "countryCode": "TR",
+    "countryName": "Turkey",
+    "languages": ["tr"]
+  },
+  ":flag_tt:": {
+    "countryCode": "TT",
+    "countryName": "Trinidad & Tobago",
+    "languages": ["en"]
+  },
+  ":flag_tv:": {
+    "countryCode": "TV",
+    "countryName": "Tuvalu",
+    "languages": ["en", "tvl"]
+  },
+  ":flag_tw:": {
+    "countryCode": "TW",
+    "countryName": "Taiwan",
+    "languages": ["zh"]
+  },
+  ":flag_tz:": {
+    "countryCode": "TZ",
+    "countryName": "Tanzania",
+    "languages": ["sw", "en"]
+  },
+  ":flag_ua:": {
+    "countryCode": "UA",
+    "countryName": "Ukraine",
+    "languages": ["uk"]
+  },
+  ":flag_ug:": {
+    "countryCode": "UG",
+    "countryName": "Uganda",
+    "languages": ["en", "sw"]
+  },
+  ":flag_um:": {
+    "countryCode": "UM",
+    "countryName": "U.S. Outlying Islands",
+    "languages": ["en"]
+  },
+  ":flag_un:": {
+    "countryCode": "UN",
+    "countryName": "United Nations",
+    "languages": ["ar", "zh", "en", "fr", "ru", "es"]
+  },
+  ":flag_us:": {
+    "countryCode": "US",
+    "countryName": "United States",
+    "languages": ["en"]
+  },
+  ":flag_uy:": {
+    "countryCode": "UY",
+    "countryName": "Uruguay",
+    "languages": ["es"]
+  },
+  ":flag_uz:": {
+    "countryCode": "UZ",
+    "countryName": "Uzbekistan",
+    "languages": ["uz"]
+  },
+  ":flag_va:": {
+    "countryCode": "VA",
+    "countryName": "Vatican City",
+    "languages": ["it", "la"]
+  },
+  ":flag_vc:": {
+    "countryCode": "VC",
+    "countryName": "St. Vincent & Grenadines",
+    "languages": ["en"]
+  },
+  ":flag_ve:": {
+    "countryCode": "VE",
+    "countryName": "Venezuela",
+    "languages": ["es"]
+  },
+  ":flag_vg:": {
+    "countryCode": "VG",
+    "countryName": "British Virgin Islands",
+    "languages": ["en"]
+  },
+  ":flag_vi:": {
+    "countryCode": "VI",
+    "countryName": "U.S. Virgin Islands",
+    "languages": ["en"]
+  },
+  ":flag_vn:": {
+    "countryCode": "VN",
+    "countryName": "Vietnam",
+    "languages": ["vi"]
+  },
+  ":flag_vu:": {
+    "countryCode": "VU",
+    "countryName": "Vanuatu",
+    "languages": ["bi", "en", "fr"]
+  },
+  ":flag_wf:": {
+    "countryCode": "WF",
+    "countryName": "Wallis & Futuna",
+    "languages": ["fr"]
+  },
+  ":flag_ws:": {
+    "countryCode": "WS",
+    "countryName": "Samoa",
+    "languages": ["sm", "en"]
+  },
+  ":flag_xk:": {
+    "countryCode": "XK",
+    "countryName": "Kosovo",
+    "languages": ["sq", "sr"]
+  },
+  ":flag_ye:": {
+    "countryCode": "YE",
+    "countryName": "Yemen",
+    "languages": ["ar"]
+  },
+  ":flag_yt:": {
+    "countryCode": "YT",
+    "countryName": "Mayotte",
+    "languages": ["fr"]
+  },
+  ":flag_za:": {
+    "countryCode": "ZA",
+    "countryName": "South Africa",
+    "languages": ["en", "af", "zu", "xh", "st", "tn"]
+  },
+  ":flag_zm:": {
+    "countryCode": "ZM",
+    "countryName": "Zambia",
+    "languages": ["en"]
+  },
+  ":flag_zw:": {
+    "countryCode": "ZW",
+    "countryName": "Zimbabwe",
+    "languages": ["en", "sn", "nd"]
+  },
+  ":pirate_flag:": {
+    "countryCode": null,
+    "countryName": "Pirate Flag",
+    "languages": []
+  },
+  ":rainbow_flag:": {
+    "countryCode": null,
+    "countryName": "Pride Flag",
+    "languages": []
+  },
+  ":transgender_flag:": {
+    "countryCode": null,
+    "countryName": "Transgender Flag",
+    "languages": []
+  }
+}

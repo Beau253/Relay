@@ -3,10 +3,15 @@
 import asyncio
 import logging
 from dotenv import load_dotenv
+
+#
+# LOAD ENVIRONMENT VARIABLES FIRST
+# This line MUST come before any other imports that rely on environment variables.
+#
+load_dotenv()
+
 from bot_runner import main as run_bot
 
-# Load environment variables from the .env file.
-load_dotenv()
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 if __name__ == "__main__":
