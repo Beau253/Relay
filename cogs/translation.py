@@ -32,7 +32,7 @@ class TranslationCog(commands.Cog, name="Translation"):
     def _load_flag_data(self):
         """
         Loads flag data from flags.json and builds a direct map
-        from the emoji's name (e.g., 'england') to the language code.
+        from the emoji's name (e.g., 'england', 'flag_au') to the language code.
         """
         try:
             script_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -44,14 +44,16 @@ class TranslationCog(commands.Cog, name="Translation"):
             for key, data in flag_data.items():
                 languages = data.get("languages")
                 if languages:
-                    # The key is now the emoji name (e.g., "england", "flag_au")
-                    # We take the first language from the list.
+                    # The key is the emoji name (e.g., "england", "flag_au")
+                    # We take the FIRST language from the list to get a string.
                     self.emoji_name_to_language_map[key] = languages[0]
             
             log.info(f"Successfully loaded {len(self.emoji_name_to_language_map)} emoji name-to-language mappings.")
 
         except FileNotFoundError:
             log.error("Could not find data/flags.json. Flag reaction translations will not work.")
+        except json.JSONDecodeError as e:
+            log.critical(f"FATAL: flags.json has a syntax error and could not be parsed: {e}. Flag reactions will not work.")
         except Exception as e:
             log.error(f"Error loading flags.json: {e}", exc_info=True)
 
@@ -125,7 +127,9 @@ class TranslationCog(commands.Cog, name="Translation"):
         if payload.user_id == self.bot.user.id or (payload.member and payload.member.bot):
             return
 
-        # NEW LOGIC: Look up the emoji's NAME directly in our new map.
+        # THIS IS THE NEW, SIMPLER LOGIC:
+        # We get the emoji's name (e.g., "england", "flag_au") and look it up directly.
+        # This works for both standard and custom-named emojis in the JSON.
         target_language = self.emoji_name_to_language_map.get(payload.emoji.name)
         if not target_language:
             return
