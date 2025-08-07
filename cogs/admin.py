@@ -316,7 +316,7 @@ class AdminCog(commands.Cog, name="Admin"):
         )
 
     @autotranslate.command(name="delete", description="Disable auto-translation for a channel.")
-    @app_commands.autocomplete(channel=autotranslate_channel_autocomplete)
+    @app_commands.autocomplete(channel='autotranslate_channel_autocomplete')
     @app_commands.describe(channel="The channel to disable auto-translation on.")
     async def autotranslate_delete(self, interaction: discord.Interaction, channel: str):
         # Convert the channel ID string from the autocomplete back into an integer
