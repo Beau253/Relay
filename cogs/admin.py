@@ -6,7 +6,7 @@ import logging
 import asyncio
 from discord.ext import commands, tasks
 from discord import app_commands
-from typing import Optional
+from typing import Optional, List
 import re # For parsing duration strings
 from datetime import datetime, timedelta, timezone
 from core import UsageManager, DatabaseManager, GoogleProjectPoolManager, language_autocomplete
