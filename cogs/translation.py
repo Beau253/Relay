@@ -128,11 +128,13 @@ class TranslationCog(commands.Cog, name="Translation"):
             await message.reply(content, mention_author=False) # Fallback to normal reply
             return
         try:
+            # NOTE: Webhooks cannot create direct "replies". This will send a new message
+            # into the channel, impersonating the user. The `delete_original` flag becomes
+            # important for this workflow to feel clean.
             await webhook.send(
                 content=content,
                 username=message.author.display_name,
                 avatar_url=message.author.display_avatar.url,
-                message_reference=message.to_reference(),
                 allowed_mentions=discord.AllowedMentions.none()
             )
         except (discord.Forbidden, discord.NotFound):
