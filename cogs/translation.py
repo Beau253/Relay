@@ -25,6 +25,32 @@ SPECIAL_CASE_FLAGS = {
     "UN": "🇺🇳"
 }
 
+class GlossaryEntryModal(discord.ui.Modal, title='Add to Dictionary'):
+    term_input = discord.ui.TextInput(
+        label='Term to protect from translation',
+        style=discord.TextStyle.short,
+        placeholder='e.g., Shinny, a special project name, etc.',
+        required=True,
+        max_length=100
+    )
+
+    def __init__(self, db: DatabaseManager):
+        super().__init__()
+        self.db = db
+
+    async def on_submit(self, interaction: discord.Interaction):
+        term = self.term_input.value.strip()
+        if not term:
+            await interaction.response.send_message("The term cannot be empty.", ephemeral=True)
+            return
+        
+        if not interaction.guild_id:
+            return
+
+        await self.db.add_glossary_term(interaction.guild_id, term)
+        log.info(f"User {interaction.user.id} added term '{term}' to glossary for guild {interaction.guild_id}.")
+        await interaction.response.send_message(f"✅ The term `{term}` has been added to the server's dictionary and will be protected from translation.", ephemeral=True)
+
 @app_commands.guild_only()
 class TranslationCog(commands.Cog, name="Translation"):
     def __init__(self, bot: commands.Bot, db_manager: DatabaseManager, translator: TextTranslator, usage_manager: UsageManager):
@@ -34,17 +60,22 @@ class TranslationCog(commands.Cog, name="Translation"):
         self.usage = usage_manager
         self.emoji_to_language_map: dict[str, str] = {}
         self.pirate_dict: dict[str, str] = {}
-        self.webhook_cache: dict[int, discord.Webhook] = {} # <-- ADD WEBHOOK CACHE
+        self.webhook_cache: dict[int, discord.Webhook] = {}
         self._load_flag_data()
         self._load_pirate_data()
 
-        log.info("[TRANSLATION_COG] Initializing and adding 'Translate Message' context menu...")
+        log.info("[TRANSLATION_COG] Initializing and adding context menus...")
         self.translate_message_menu = app_commands.ContextMenu(
             name='Translate Message',
             callback=self.translate_message_callback,
         )
+        self.add_to_dictionary_menu = app_commands.ContextMenu(
+            name='Add to Dictionary',
+            callback=self.add_to_dictionary_callback,
+        )
         self.bot.tree.add_command(self.translate_message_menu)
-        log.info("[TRANSLATION_COG] 'Translate Message' context menu added to tree.")
+        self.bot.tree.add_command(self.add_to_dictionary_menu)
+        log.info("[TRANSLATION_COG] Context menus added to tree.")
 
     def _load_flag_data(self):
         try:
@@ -104,6 +135,52 @@ class TranslationCog(commands.Cog, name="Translation"):
         if translation_result and translation_result.get('translated_text') and translation_result.get("detected_language_code") != "error":
             await self.usage.record_usage(len(original_message_content))
         return translation_result
+
+    async def translate_message_callback(self, interaction: discord.Interaction, message: discord.Message):
+        """The actual logic for the 'Translate Message' context menu."""
+        await interaction.response.defer(ephemeral=True)
+        if not message.content and not message.embeds:
+            await interaction.followup.send("This message has no text or embeds to translate.")
+            return
+        target_language = await self.db.get_user_preferences(interaction.user.id)
+        if not target_language:
+            await interaction.followup.send("I don't know your preferred language yet! Use /set_language to set it up.", ephemeral=True)
+            return
+        
+        # --- Glossary Integration ---
+        glossary = await self.db.get_glossary_terms(interaction.guild_id) if interaction.guild_id else []
+        
+        translated_text = ""
+        if message.content:
+            translation_result = await self.perform_translation(message.content, target_language, glossary=glossary)
+            if translation_result:
+                translated_text = translation_result.get('translated_text', '')
+        
+        translated_embeds = []
+        if message.embeds:
+            for embed in message.embeds:
+                translated_embed = await HubManagerCog._translate_embed(self.translator, embed, target_language, glossary=glossary)
+                translated_embeds.append(translated_embed)
+        
+        if translated_text and not translated_embeds:
+            reply_embed = discord.Embed(title="Translation Result", description=translated_text, color=discord.Color.blue())
+            reply_embed.set_footer(text=f"Original message by {message.author.display_name}")
+            await interaction.followup.send(embed=reply_embed)
+        elif translated_embeds:
+            if translated_text:
+                await interaction.followup.send(translated_text, embeds=translated_embeds)
+            else:
+                await interaction.followup.send(embeds=translated_embeds)
+        elif not translated_text and message.content:
+             await interaction.followup.send("An error occurred during translation.", ephemeral=True)
+
+    async def add_to_dictionary_callback(self, interaction: discord.Interaction, message: discord.Message):
+        """The logic for the 'Add to Dictionary' context menu."""
+        modal = GlossaryEntryModal(self.db)
+        # Pre-fill the form with the content of the message the user clicked on
+        if message.content:
+            modal.term_input.default = message.content
+        await interaction.response.send_modal(modal)
 
     async def _get_webhook(self, channel: discord.TextChannel) -> Optional[discord.Webhook]:
         if channel.id in self.webhook_cache:
@@ -220,10 +297,12 @@ class TranslationCog(commands.Cog, name="Translation"):
             if detected_lang.split('-')[0] == target_lang.split('-')[0]:
                 return
         except LangDetectException:
-            pass # Fallback to Google API for short/unclear text
+            pass
 
-        # --- Perform Translation ---
-        translation_result = await self.perform_translation(message.content, target_lang)
+        # --- Glossary Integration ---
+        glossary = await self.db.get_glossary_terms(message.guild.id)
+        
+        translation_result = await self.perform_translation(message.content, target_lang, glossary=glossary)
         if not translation_result: return
 
         translated_text = translation_result.get('translated_text')

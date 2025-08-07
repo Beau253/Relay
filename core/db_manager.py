@@ -63,6 +63,13 @@ TABLE_CREATION_SQL = {
             channel_id BIGINT PRIMARY KEY,
             guild_id BIGINT NOT NULL
         );
+    """,
+    'glossary_terms': """
+        CREATE TABLE IF NOT EXISTS glossary_terms (
+            guild_id BIGINT,
+            term TEXT,
+            PRIMARY KEY (guild_id, term)
+        );
     """
 }
 
@@ -441,4 +448,39 @@ class DatabaseManager:
                 return await conn.fetch("SELECT * FROM auto_translate_exemptions WHERE guild_id = $1;", guild_id)
         except Exception as e:
             log.error(f"Error fetching exempt channels for guild {guild_id}: {e}")
+            return []
+
+    # --- Glossary Management Methods ---
+    async def add_glossary_term(self, guild_id: int, term: str):
+        """Adds a term to the server's 'do-not-translate' glossary."""
+        if not self.pool: return
+        try:
+            # Terms are stored in lowercase to ensure case-insensitive matching.
+            term_lower = term.lower()
+            async with self.pool.acquire() as conn:
+                query = "INSERT INTO glossary_terms (guild_id, term) VALUES ($1, $2) ON CONFLICT (guild_id, term) DO NOTHING;"
+                await conn.execute(query, guild_id, term_lower)
+        except Exception as e:
+            log.error(f"Error adding glossary term '{term}' for guild {guild_id}: {e}")
+
+    async def remove_glossary_term(self, guild_id: int, term: str):
+        """Removes a term from the server's glossary."""
+        if not self.pool: return
+        try:
+            term_lower = term.lower()
+            async with self.pool.acquire() as conn:
+                await conn.execute("DELETE FROM glossary_terms WHERE guild_id = $1 AND term = $2;", guild_id, term_lower)
+        except Exception as e:
+            log.error(f"Error removing glossary term '{term}' for guild {guild_id}: {e}")
+
+    async def get_glossary_terms(self, guild_id: int) -> List[str]:
+        """Gets a list of all glossary terms for a server."""
+        if not self.pool: return []
+        try:
+            async with self.pool.acquire() as conn:
+                # Fetch all records and extract just the 'term' column into a simple list.
+                records = await conn.fetch("SELECT term FROM glossary_terms WHERE guild_id = $1;", guild_id)
+                return [record['term'] for record in records]
+        except Exception as e:
+            log.error(f"Error fetching glossary terms for guild {guild_id}: {e}")
             return []

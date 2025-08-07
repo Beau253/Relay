@@ -4,7 +4,8 @@ import os
 import asyncio
 import logging
 import json
-from typing import Optional, Dict
+import re
+from typing import Optional, Dict, List
 from google.cloud import translate_v3 as translate
 from google.oauth2 import service_account
 from google.api_core import exceptions as google_exceptions
@@ -75,11 +76,31 @@ class TextTranslator:
         text: str,
         target_language: str,
         source_language: Optional[str] = None,
+        glossary: Optional[List[str]] = None
     ) -> Optional[Dict[str, str]]:
 
         if not self.is_initialized or not self.client or not self.parent:
             log.error("Cannot translate: Translator service is not initialized or configured properly.")
             return None
+            
+        # --- Glossary Pre-processing ---
+        # Replace glossary terms with placeholders BEFORE sending to the API.
+        placeholders = {}
+        if glossary and text:
+            # Sort glossary by length descending to match longer phrases first
+            sorted_glossary = sorted(glossary, key=len, reverse=True)
+            for i, term in enumerate(sorted_glossary):
+                # Use regex to find the term case-insensitively and replace it
+                # We store the original casing in our placeholders dict.
+                placeholder = f"__RELAY_GLOSSARY_{i}__"
+                
+                def replace_and_store(match):
+                    original_word = match.group(0)
+                    placeholders[placeholder] = original_word
+                    return placeholder
+                
+                # Use word boundaries (\b) to avoid replacing parts of words
+                text = re.sub(r'\b' + re.escape(term) + r'\b', replace_and_store, text, flags=re.IGNORECASE)
 
         # --- Language Code Mapping & Debugging ---
         # Remap zh-TW to zh for Google API compatibility
