@@ -358,7 +358,10 @@ class AdminCog(commands.Cog, name="Admin"):
         
         embed.description = description
         await interaction.followup.send(embed=embed, ephemeral=True)
-        
+
+    server_translate = app_commands.Group(name="server_translate", description="Manage server-wide auto-translation.")
+
+    @server_translate.command(name="set", description="Set a default translation language for all non-exempt channels.")   
     @app_commands.autocomplete(language=language_autocomplete)
     @app_commands.describe(
         language="The language to translate all messages INTO by default.",
