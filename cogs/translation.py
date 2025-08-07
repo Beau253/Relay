@@ -126,22 +126,23 @@ class TranslationCog(commands.Cog, name="Translation"):
         self.bot.tree.remove_command(self.translate_message_menu.name, type=self.translate_message_menu.type)
         self.bot.tree.remove_command(self.add_to_dictionary_menu.name, type=self.add_to_dictionary_menu.type)
 
-    async def perform_translation(self, original_message_content: str, target_lang: str, glossary: Optional[List[str]] = None):
+    async def perform_translation(self, original_message_content: str, target_lang: str, glossary: Optional[List[str]] = None, source_lang: Optional[str] = None):
         if not self.translator.is_initialized:
             return {"translated_text": "Translation service is currently unavailable.", "detected_language_code": "error"}
         if self.usage.check_limit_exceeded(len(original_message_content)):
             return {"translated_text": "The monthly translation limit has been reached.", "detected_language_code": "error"}
 
         # --- FINAL SANITIZATION ---
-        # This is a safety net to ensure the language code is ALWAYS in the correct format.
-        # It extracts the two-letter code from formats like "English (en)" or "en-US".
         lang_code_match = re.search(r'\b([a-z]{2}(?:-[A-Z]{2})?)\b', target_lang)
         sanitized_lang = lang_code_match.group(1) if lang_code_match else target_lang
         # --- END SANITIZATION ---
 
-        translation_result = await self.translator.translate_text(original_message_content, sanitized_lang, glossary=glossary)
+        # Pass the pre-detected source_lang to the core translator to avoid a redundant API call
+        translation_result = await self.translator.translate_text(original_message_content, sanitized_lang, glossary=glossary, source_language=source_lang)
         if translation_result and translation_result.get('translated_text') and translation_result.get("detected_language_code") != "error":
-            await self.usage.record_usage(len(original_message_content))
+            # Only record usage if an actual translation occurred (source != target)
+            if translation_result.get('translated_text') != original_message_content:
+                await self.usage.record_usage(len(original_message_content))
         return translation_result
 
     async def translate_message_callback(self, interaction: discord.Interaction, message: discord.Message):
@@ -298,6 +299,7 @@ class TranslationCog(commands.Cog, name="Translation"):
                 return
         
         target_lang = config['target_language_code']
+        detected_lang = None
 
         # --- Pre-filter to save API calls ---
         try:
@@ -364,6 +366,7 @@ class TranslationCog(commands.Cog, name="Translation"):
             return
 
         # --- OFFLINE PRE-FILTER RESTORED ---
+        detected_lang = None
         if message.content:
             try:
                 detected_lang = detect(message.content)
@@ -377,9 +380,13 @@ class TranslationCog(commands.Cog, name="Translation"):
 
         log.info(f"Flag reaction translation triggered by {payload.member.display_name if payload.member else 'Unknown User'} for language '{target_language}'.")
         async with channel.typing():
+            # --- Glossary Integration ---
+            glossary = await self.db.get_glossary_terms(interaction.guild_id) if interaction.guild_id else []
+
             translated_text = ""
             if message.content:
-                translation_result = await self.perform_translation(message.content, target_language)
+                # Pass the detected_lang to the function
+                translation_result = await self.perform_translation(message.content, target_language, glossary=glossary, source_lang=detected_lang)
                 if translation_result:
                     translated_text = translation_result.get('translated_text', '')
             translated_embeds = []
