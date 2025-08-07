@@ -278,10 +278,10 @@ class DatabaseManager:
             log.error(f"Error fetching user preferences for user {user_id}: {e}")
             return None
 
-    async def set_guild_config(self, guild_id: int, onboarding_channel_id: Optional[int] = None, admin_log_channel_id: Optional[int] = None, language_setup_role_id: Optional[int] = None, main_language_code: Optional[str] = None, server_wide_language: Optional[str] = None):
+    async def set_guild_config(self, guild_id: int, onboarding_channel_id: Optional[int] = None, admin_log_channel_id: Optional[int] = None, language_setup_role_id: Optional[int] = None, main_language_code: Optional[str] = None, server_wide_language: Optional[str] = None, **kwargs):
         """
         Sets or updates configuration settings for a specific guild.
-        Parameters can be None to not update that specific setting.
+        Accepts additional keyword arguments for boolean flags.
         """
         if not self.pool: return
         try:
