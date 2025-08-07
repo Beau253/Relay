@@ -141,10 +141,6 @@ class AdminCog(commands.Cog, name="Admin"):
             await interaction.followup.send("\n".join(response_parts), ephemeral=True)
 
         except Exception as e:
-            log.error(f"Error setting guild config in admin command for guild {guild_id}: {e}", exc_info=True)
-            await interaction.followup.send("An error occurred while trying to set guild configuration.", ephemeral=True)
-
-    except Exception as e:
             log.error(f"Error setting guild config for guild {guild_id}: {e}", exc_info=True)
             await interaction.followup.send("An error occurred while trying to set guild configuration.", ephemeral=True)
 
