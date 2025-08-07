@@ -51,7 +51,8 @@ TABLE_CREATION_SQL = {
             channel_id BIGINT PRIMARY KEY,
             guild_id BIGINT NOT NULL,
             target_language_code TEXT NOT NULL,
-            impersonate BOOLEAN DEFAULT TRUE
+            impersonate BOOLEAN DEFAULT TRUE,
+            delete_original BOOLEAN DEFAULT FALSE
         );
     """
 }
@@ -331,19 +332,20 @@ class DatabaseManager:
             return None
 
     # --- Auto-Translate Channel Methods ---
-    async def set_auto_translate_channel(self, channel_id: int, guild_id: int, target_language_code: str, impersonate: bool):
+     async def set_auto_translate_channel(self, channel_id: int, guild_id: int, target_language_code: str, impersonate: bool, delete_original: bool):
         """Sets or updates an auto-translate configuration for a channel."""
         if not self.pool: return
         try:
             async with self.pool.acquire() as conn:
                 query = """
-                    INSERT INTO auto_translate_channels (channel_id, guild_id, target_language_code, impersonate)
-                    VALUES ($1, $2, $3, $4)
+                    INSERT INTO auto_translate_channels (channel_id, guild_id, target_language_code, impersonate, delete_original)
+                    VALUES ($1, $2, $3, $4, $5)
                     ON CONFLICT (channel_id) DO UPDATE
                     SET target_language_code = EXCLUDED.target_language_code,
-                        impersonate = EXCLUDED.impersonate;
+                        impersonate = EXCLUDED.impersonate,
+                        delete_original = EXCLUDED.delete_original;
                 """
-                await conn.execute(query, channel_id, guild_id, target_language_code, impersonate)
+                await conn.execute(query, channel_id, guild_id, target_language_code, impersonate, delete_original)
         except Exception as e:
             log.error(f"Error setting auto-translate channel for {channel_id}: {e}")
 

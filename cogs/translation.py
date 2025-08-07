@@ -7,7 +7,8 @@ import random
 from discord.ext import commands
 from discord import app_commands
 from cogs.hub_manager import HubManagerCog
-from langdetect import detect, LangDetectException # <-- IMPORT FOR PRE-FILTER
+from langdetect import detect, LangDetectException
+from typing import Optional, List
 
 # Import our core services and utilities
 from core import DatabaseManager, TextTranslator, UsageManager, language_autocomplete, SUPPORTED_LANGUAGES
@@ -33,6 +34,7 @@ class TranslationCog(commands.Cog, name="Translation"):
         self.usage = usage_manager
         self.emoji_to_language_map: dict[str, str] = {}
         self.pirate_dict: dict[str, str] = {}
+        self.webhook_cache: dict[int, discord.Webhook] = {} # <-- ADD WEBHOOK CACHE
         self._load_flag_data()
         self._load_pirate_data()
 
@@ -103,6 +105,39 @@ class TranslationCog(commands.Cog, name="Translation"):
             await self.usage.record_usage(len(original_message_content))
         return translation_result
 
+    async def _get_webhook(self, channel: discord.TextChannel) -> Optional[discord.Webhook]:
+        if channel.id in self.webhook_cache:
+            return self.webhook_cache[channel.id]
+        try:
+            webhooks = await channel.webhooks()
+            webhook = discord.utils.get(webhooks, name="Relay Translator")
+            if webhook is None:
+                webhook = await channel.create_webhook(name="Relay Translator")
+            self.webhook_cache[channel.id] = webhook
+            return webhook
+        except discord.Forbidden:
+            log.error(f"Missing 'Manage Webhooks' permission in #{channel.name} for impersonation.")
+            return None
+        except Exception as e:
+            log.error(f"Failed to get/create webhook for #{channel.name}: {e}", exc_info=True)
+            return None
+    
+    async def _send_webhook_as_reply(self, message: discord.Message, content: str):
+        webhook = await self._get_webhook(message.channel)
+        if not webhook:
+            await message.reply(content, mention_author=False) # Fallback to normal reply
+            return
+        try:
+            await webhook.send(
+                content=content,
+                username=message.author.display_name,
+                avatar_url=message.author.display_avatar.url,
+                message_reference=message.to_reference(),
+                allowed_mentions=discord.AllowedMentions.none()
+            )
+        except (discord.Forbidden, discord.NotFound):
+            await message.reply(content, mention_author=False) # Fallback
+    
     @app_commands.command(name="set_language", description="Set your preferred language for translations.")
     @app_commands.autocomplete(language=language_autocomplete)
     @app_commands.describe(language="The language you want messages to be translated into for you.")
@@ -118,33 +153,44 @@ class TranslationCog(commands.Cog, name="Translation"):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
-        if message.author.bot or message.webhook_id or not message.guild or not message.content:
+        if message.author.bot or message.webhook_id or not message.guild or not isinstance(message.channel, discord.TextChannel) or not message.content:
             return
         config = await self.db.get_auto_translate_config(message.channel.id)
         if not config:
             return
         target_lang = config['target_language_code']
 
-        # --- OFFLINE PRE-FILTER RESTORED ---
         try:
             detected_lang = detect(message.content)
             if detected_lang.split('-')[0] == target_lang.split('-')[0]:
-                log.info(f"Auto-translate skipped: Local pre-filter detected '{detected_lang}', matching target '{target_lang}'. No API call.")
                 return
         except LangDetectException:
-            log.warning("Local detection failed for auto-translate, falling back to Google API.")
             pass
-        # --- END OF PRE-FILTER ---
 
         translation_result = await self.perform_translation(message.content, target_lang)
         if not translation_result: return
 
         translated_text = translation_result.get('translated_text')
         detected_language = translation_result.get('detected_language_code')
-
-        if not translated_text or not detected_language or detected_language == "error" or detected_language.split('-')[0] == target_lang.split('-')[0]:
+        
+        if not translated_text or not detected_language or detected_language == "error" or translated_text == message.content:
             return
-        await message.reply(content=translated_text, mention_author=False)
+        
+        if config.get('impersonate', False):
+            await self._send_webhook_as_reply(message, translated_text)
+        else:
+            await message.reply(content=translated_text, mention_author=False)
+
+        # Finally, delete the original message if the setting is enabled
+        if config.get('delete_original', False):
+            try:
+                await message.delete()
+            except discord.Forbidden:
+                log.warning(f"Failed to delete original message {message.id} in #{message.channel.name}: Missing 'Manage Messages' permission.")
+            except discord.NotFound:
+                pass # Message was likely already deleted, which is fine.
+            except Exception as e:
+                log.error(f"An unexpected error occurred while deleting message {message.id}: {e}", exc_info=True)
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):

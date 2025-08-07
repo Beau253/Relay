@@ -299,14 +299,20 @@ class AdminCog(commands.Cog, name="Admin"):
     @app_commands.describe(
         channel="The channel to activate auto-translation in.",
         language="The language to translate messages INTO.",
-        impersonate="Post translations using the original user's name and avatar (default: True)."
+        impersonate="Post translations using the original user's name and avatar (default: True).",
+        delete_original_message="Delete the original message after translating (default: False)."
     )
-    async def autotranslate_set(self, interaction: discord.Interaction, channel: discord.TextChannel, language: str, impersonate: bool = True):
-        await self.db.set_auto_translate_channel(channel.id, interaction.guild_id, language, impersonate)
+    async def autotranslate_set(self, interaction: discord.Interaction, channel: discord.TextChannel, language: str, impersonate: bool = True, delete_original_message: bool = False):
+        await self.db.set_auto_translate_channel(channel.id, interaction.guild_id, language, impersonate, delete_original_message)
+        
         impersonate_status = "enabled" if impersonate else "disabled"
+        delete_status = "enabled" if delete_original_message else "disabled"
+        
         await interaction.response.send_message(
             f"✅ Auto-translation has been **enabled** for {channel.mention}.\n"
-            f"All messages not in `{language}` will be translated. Impersonation is `{impersonate_status}`.",
+            f"- **Target Language:** `{language}`\n"
+            f"- **Impersonation:** `{impersonate_status}`\n"
+            f"- **Delete Original:** `{delete_status}`",
             ephemeral=True
         )
 
@@ -335,8 +341,9 @@ class AdminCog(commands.Cog, name="Admin"):
             channel = self.bot.get_channel(config['channel_id'])
             channel_mention = channel.mention if channel else f"`Channel ID: {config['channel_id']}`"
             lang = config['target_language_code']
-            impersonate_status = "✅" if config['impersonate'] else "❌"
-            description += f"{channel_mention} -> `{lang}` (Impersonate: {impersonate_status})\n"
+            impersonate_status = "✅" if config.get('impersonate', False) else "❌"
+            delete_status = "✅" if config.get('delete_original', False) else "❌"
+            description += f"{channel_mention} -> `{lang}` (Impersonate: {impersonate_status} | Delete Original: {delete_status})\n"
         
         embed.description = description
         await interaction.followup.send(embed=embed, ephemeral=True)
