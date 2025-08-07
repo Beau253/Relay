@@ -44,7 +44,9 @@ TABLE_CREATION_SQL = {
             admin_log_channel_id BIGINT,
             language_setup_role_id BIGINT,
             main_language_code TEXT DEFAULT 'en',
-            server_wide_language TEXT 
+            server_wide_language TEXT,
+            sw_impersonate BOOLEAN DEFAULT TRUE,
+            sw_delete_original BOOLEAN DEFAULT FALSE
         );
     """,
     'auto_translate_channels': """
@@ -309,6 +311,18 @@ class DatabaseManager:
                     update_parts.append(f"server_wide_language = ${param_idx}")
                     values.append(server_wide_language)
                     param_idx += 1
+                
+                # Check for the new boolean flags
+                # We check `is not None` because a user might want to explicitly set them to False
+                if 'sw_impersonate' in kwargs and kwargs['sw_impersonate'] is not None:
+                    update_parts.append(f"sw_impersonate = ${param_idx}")
+                    values.append(kwargs['sw_impersonate'])
+                    param_idx += 1
+                if 'sw_delete_original' in kwargs and kwargs['sw_delete_original'] is not None:
+                    update_parts.append(f"sw_delete_original = ${param_idx}")
+                    values.append(kwargs['sw_delete_original'])
+                    param_idx += 1
+                
                 if not update_parts:
                     log.warning(f"No guild config parameters provided for guild {guild_id}.")
                     return

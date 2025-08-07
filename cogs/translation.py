@@ -173,11 +173,11 @@ class TranslationCog(commands.Cog, name="Translation"):
             server_lang = guild_config.get('server_wide_language') if guild_config else None
             
             if server_lang:
-                # Create a "virtual" config for the server-wide rule with default settings
+                # Create a "virtual" config for the server-wide rule using the stored settings
                 config = {
                     'target_language_code': server_lang,
-                    'impersonate': True,
-                    'delete_original': False
+                    'impersonate': guild_config.get('sw_impersonate', False),
+                    'delete_original': guild_config.get('sw_delete_original', False)
                 }
             else:
                 # No channel rule and no server rule, so we are done.

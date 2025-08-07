@@ -352,11 +352,30 @@ class AdminCog(commands.Cog, name="Admin"):
 
     @server_translate.command(name="set", description="Set a default translation language for all non-exempt channels.")
     @app_commands.autocomplete(language=language_autocomplete)
-    @app_commands.describe(language="The language to translate all messages INTO by default.")
-    async def server_translate_set(self, interaction: discord.Interaction, language: str):
+    @app_commands.describe(
+        language="The language to translate all messages INTO by default.",
+        impersonate="Post translations using the original user's name and avatar (default: True).",
+        delete_original_message="Delete the original message after translating (default: False)."
+    )
+    async def server_translate_set(self, interaction: discord.Interaction, language: str, impersonate: bool = True, delete_original_message: bool = False):
         if not interaction.guild_id: return
-        await self.db.set_guild_config(guild_id=interaction.guild_id, server_wide_language=language)
-        await interaction.response.send_message(f"✅ Server-wide auto-translation has been **enabled** to `{language}`.", ephemeral=True)
+        await self.db.set_guild_config(
+            guild_id=interaction.guild_id, 
+            server_wide_language=language,
+            sw_impersonate=impersonate,
+            sw_delete_original=delete_original_message
+        )
+        
+        impersonate_status = "enabled" if impersonate else "disabled"
+        delete_status = "enabled" if delete_original_message else "disabled"
+
+        await interaction.response.send_message(
+            f"✅ Server-wide auto-translation settings have been updated.\n"
+            f"- **Target Language:** `{language}`\n"
+            f"- **Impersonation:** `{impersonate_status}`\n"
+            f"- **Delete Original:** `{delete_status}`",
+            ephemeral=True
+        )
 
     @server_translate.command(name="disable", description="Disable the server-wide auto-translation rule.")
     async def server_translate_disable(self, interaction: discord.Interaction):
@@ -391,15 +410,40 @@ class AdminCog(commands.Cog, name="Admin"):
             await interaction.followup.send("There are no channels on the exemption list for this server.", ephemeral=True)
             return
 
+        embed = discord.Embed(title="Exempt Channels", color=discord.Color.orange())
         description = "These channels will be ignored by the server-wide auto-translator:\n\n"
         for record in exempt_channels:
             channel = self.bot.get_channel(record['channel_id'])
-            # Use a separate variable to build the string, avoiding the f-string syntax error.
-            channel_text = channel.mention if channel else f"`{record['channel_id']}`"
-            description += f"{channel_text}\n"
+            channel_text = channel.mention if channel else f"`ID: {record['channel_id']}`"
+            description += f"- {channel_text}\n"
         
         embed.description = description
         await interaction.followup.send(embed=embed, ephemeral=True)
+
+    @server_translate.command(name="status", description="View the current server-wide translation settings.")
+    async def server_translate_status(self, interaction: discord.Interaction):
+        if not interaction.guild_id:
+            await interaction.response.send_message("This command must be run in a server.", ephemeral=True)
+            return
+
+        guild_config = await self.db.get_guild_config(interaction.guild_id)
+        
+        embed = discord.Embed(title="Server-Wide Translation Status", color=discord.Color.blue())
+
+        if guild_config and guild_config.get('server_wide_language'):
+            lang = guild_config['server_wide_language']
+            impersonate_status = "✅ Enabled" if guild_config.get('sw_impersonate', False) else "❌ Disabled"
+            delete_status = "✅ Enabled" if guild_config.get('sw_delete_original', False) else "❌ Disabled"
+            
+            embed.description = f"Server-wide translation is **ENABLED**."
+            embed.add_field(name="Target Language", value=f"`{lang}`", inline=False)
+            embed.add_field(name="Impersonate Users", value=impersonate_status, inline=False)
+            embed.add_field(name="Delete Originals", value=delete_status, inline=False)
+        else:
+            embed.description = "Server-wide translation is currently **DISABLED**."
+            embed.color = discord.Color.red()
+
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
 async def setup(bot: commands.Bot):
