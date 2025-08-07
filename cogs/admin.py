@@ -392,11 +392,12 @@ class AdminCog(commands.Cog, name="Admin"):
             await interaction.followup.send("There are no channels on the exemption list for this server.", ephemeral=True)
             return
 
-        embed = discord.Embed(title="Exempt Channels", color=discord.Color.orange())
         description = "These channels will be ignored by the server-wide auto-translator:\n\n"
         for record in exempt_channels:
             channel = self.bot.get_channel(record['channel_id'])
-            description += f"{channel.mention if channel else f'`{record['channel_id']}`'}\n"
+            # Use a separate variable to build the string, avoiding the f-string syntax error.
+            channel_text = channel.mention if channel else f"`{record['channel_id']}`"
+            description += f"{channel_text}\n"
         
         embed.description = description
         await interaction.followup.send(embed=embed, ephemeral=True)
