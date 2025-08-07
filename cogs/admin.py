@@ -316,10 +316,22 @@ class AdminCog(commands.Cog, name="Admin"):
         )
 
     @autotranslate.command(name="delete", description="Disable auto-translation for a channel.")
+    @app_commands.autocomplete(channel=autotranslate_channel_autocomplete)
     @app_commands.describe(channel="The channel to disable auto-translation on.")
-    async def autotranslate_delete(self, interaction: discord.Interaction, channel: discord.TextChannel):
-        await self.db.remove_auto_translate_channel(channel.id)
-        await interaction.response.send_message(f"✅ Auto-translation has been **disabled** for {channel.mention}.", ephemeral=True)
+    async def autotranslate_delete(self, interaction: discord.Interaction, channel: str):
+        # Convert the channel ID string from the autocomplete back into an integer
+        try:
+            channel_id = int(channel)
+        except ValueError:
+            await interaction.response.send_message("Invalid channel selected.", ephemeral=True)
+            return
+            
+        # Fetch the channel object to get its name for the confirmation message
+        channel_obj = self.bot.get_channel(channel_id)
+        channel_mention = f"#{channel_obj.name}" if channel_obj else f"channel ID `{channel_id}`"
+
+        await self.db.remove_auto_translate_channel(channel_id)
+        await interaction.response.send_message(f"✅ Auto-translation has been **disabled** for {channel_mention}.", ephemeral=True)
 
     @autotranslate.command(name="list", description="List all channels with auto-translation enabled.")
     async def autotranslate_list(self, interaction: discord.Interaction):
@@ -346,11 +358,7 @@ class AdminCog(commands.Cog, name="Admin"):
         
         embed.description = description
         await interaction.followup.send(embed=embed, ephemeral=True)
-
-
-    server_translate = app_commands.Group(name="server_translate", description="Manage server-wide auto-translation.")
-
-    @server_translate.command(name="set", description="Set a default translation language for all non-exempt channels.")
+        
     @app_commands.autocomplete(language=language_autocomplete)
     @app_commands.describe(
         language="The language to translate all messages INTO by default.",

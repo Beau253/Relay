@@ -20,6 +20,7 @@ async def language_autocomplete(interaction: discord.Interaction, current: str) 
     choices = []
     for code, name in SUPPORTED_LANGUAGES.items():
         if current.lower() in name.lower() or current.lower() in code.lower():
+            # The name is for display, the value is the critical part that the API needs.
             choices.append(app_commands.Choice(name=f"{name} ({code})", value=code))
     return choices[:25] # Limit to 25 choices, the maximum for autocomplete
 
