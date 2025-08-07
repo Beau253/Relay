@@ -332,7 +332,7 @@ class DatabaseManager:
             return None
 
     # --- Auto-Translate Channel Methods ---
-     async def set_auto_translate_channel(self, channel_id: int, guild_id: int, target_language_code: str, impersonate: bool, delete_original: bool):
+    async def set_auto_translate_channel(self, channel_id: int, guild_id: int, target_language_code: str, impersonate: bool, delete_original: bool):
         """Sets or updates an auto-translate configuration for a channel."""
         if not self.pool: return
         try:
