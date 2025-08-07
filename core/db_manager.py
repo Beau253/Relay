@@ -43,7 +43,8 @@ TABLE_CREATION_SQL = {
             onboarding_channel_id BIGINT,
             admin_log_channel_id BIGINT,
             language_setup_role_id BIGINT,
-            main_language_code TEXT DEFAULT 'en'
+            main_language_code TEXT DEFAULT 'en',
+            server_wide_language TEXT 
         );
     """,
     'auto_translate_channels': """
@@ -53,6 +54,12 @@ TABLE_CREATION_SQL = {
             target_language_code TEXT NOT NULL,
             impersonate BOOLEAN DEFAULT TRUE,
             delete_original BOOLEAN DEFAULT FALSE
+        );
+    """,
+    'auto_translate_exemptions': """
+        CREATE TABLE IF NOT EXISTS auto_translate_exemptions (
+            channel_id BIGINT PRIMARY KEY,
+            guild_id BIGINT NOT NULL
         );
     """
 }
@@ -269,7 +276,7 @@ class DatabaseManager:
             log.error(f"Error fetching user preferences for user {user_id}: {e}")
             return None
 
-    async def set_guild_config(self, guild_id: int, onboarding_channel_id: Optional[int] = None, admin_log_channel_id: Optional[int] = None, language_setup_role_id: Optional[int] = None, main_language_code: Optional[str] = None):
+    async def set_guild_config(self, guild_id: int, onboarding_channel_id: Optional[int] = None, admin_log_channel_id: Optional[int] = None, language_setup_role_id: Optional[int] = None, main_language_code: Optional[str] = None, server_wide_language: Optional[str] = None):
         """
         Sets or updates configuration settings for a specific guild.
         Parameters can be None to not update that specific setting.
@@ -290,7 +297,6 @@ class DatabaseManager:
                     update_parts.append(f"admin_log_channel_id = ${param_idx}")
                     values.append(admin_log_channel_id)
                     param_idx += 1
-                
                 if main_language_code is not None:
                     update_parts.append(f"main_language_code = ${param_idx}")
                     values.append(main_language_code)
@@ -298,6 +304,10 @@ class DatabaseManager:
                 if language_setup_role_id is not None:
                     update_parts.append(f"language_setup_role_id = ${param_idx}")
                     values.append(language_setup_role_id)
+                    param_idx += 1
+                if server_wide_language is not None:
+                    update_parts.append(f"server_wide_language = ${param_idx}")
+                    values.append(server_wide_language)
                     param_idx += 1
                 if not update_parts:
                     log.warning(f"No guild config parameters provided for guild {guild_id}.")
@@ -376,4 +386,45 @@ class DatabaseManager:
                 return await conn.fetch("SELECT * FROM auto_translate_channels WHERE guild_id = $1;", guild_id)
         except Exception as e:
             log.error(f"Error fetching all auto-translate configs for guild {guild_id}: {e}")
+            return []
+
+    # --- Auto-Translate Exemption Methods ---
+    async def add_auto_translate_exemption(self, guild_id: int, channel_id: int):
+        """Adds a channel to the auto-translate exemption list."""
+        if not self.pool: return
+        try:
+            async with self.pool.acquire() as conn:
+                query = "INSERT INTO auto_translate_exemptions (channel_id, guild_id) VALUES ($1, $2) ON CONFLICT (channel_id) DO NOTHING;"
+                await conn.execute(query, channel_id, guild_id)
+        except Exception as e:
+            log.error(f"Error adding exemption for channel {channel_id}: {e}")
+
+    async def remove_auto_translate_exemption(self, channel_id: int):
+        """Removes a channel from the auto-translate exemption list."""
+        if not self.pool: return
+        try:
+            async with self.pool.acquire() as conn:
+                await conn.execute("DELETE FROM auto_translate_exemptions WHERE channel_id = $1;", channel_id)
+        except Exception as e:
+            log.error(f"Error removing exemption for channel {channel_id}: {e}")
+
+    async def is_channel_exempt(self, channel_id: int) -> bool:
+        """Checks if a channel is on the exemption list."""
+        if not self.pool: return False
+        try:
+            async with self.pool.acquire() as conn:
+                query = "SELECT EXISTS(SELECT 1 FROM auto_translate_exemptions WHERE channel_id = $1);"
+                return await conn.fetchval(query, channel_id)
+        except Exception as e:
+            log.error(f"Error checking exemption for channel {channel_id}: {e}")
+            return False
+
+    async def get_exempt_channels(self, guild_id: int) -> List[asyncpg.Record]:
+        """Gets all exempt channels for a guild."""
+        if not self.pool: return []
+        try:
+            async with self.pool.acquire() as conn:
+                return await conn.fetch("SELECT * FROM auto_translate_exemptions WHERE guild_id = $1;", guild_id)
+        except Exception as e:
+            log.error(f"Error fetching exempt channels for guild {guild_id}: {e}")
             return []

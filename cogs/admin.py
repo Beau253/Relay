@@ -349,10 +349,71 @@ class AdminCog(commands.Cog, name="Admin"):
         await interaction.followup.send(embed=embed, ephemeral=True)
 
 
+    server_translate = app_commands.Group(name="server_translate", description="Manage server-wide auto-translation.")
+
+    @server_translate.command(name="set", description="Set a default translation language for all non-exempt channels.")
+    @app_commands.autocomplete(language=language_autocomplete)
+    @app_commands.describe(language="The language to translate all messages INTO by default.")
+    async def server_translate_set(self, interaction: discord.Interaction, language: str):
+        if not interaction.guild_id: return
+        await self.db.set_guild_config(guild_id=interaction.guild_id, server_wide_language=language)
+        await interaction.response.send_message(f"✅ Server-wide auto-translation has been **enabled** to `{language}`.", ephemeral=True)
+
+    @server_translate.command(name="disable", description="Disable the server-wide auto-translation rule.")
+    async def server_translate_disable(self, interaction: discord.Interaction):
+        if not interaction.guild_id: return
+        # Setting the language to NULL effectively disables it.
+        await self.db.set_guild_config(guild_id=interaction.guild_id, server_wide_language=None)
+        await interaction.response.send_message("✅ Server-wide auto-translation has been **disabled**.", ephemeral=True)
+
+    @server_translate.command(name="exempt_add", description="Add a channel to the server-wide translation exemption list.")
+    @app_commands.describe(channel="The channel to exempt from server-wide translation.")
+    async def server_translate_exempt_add(self, interaction: discord.Interaction, channel: discord.TextChannel):
+        if not interaction.guild_id: return
+        await self.db.add_auto_translate_exemption(interaction.guild_id, channel.id)
+        await interaction.response.send_message(f"✅ {channel.mention} is now **exempt** from server-wide auto-translation.", ephemeral=True)
+
+    @server_translate.command(name="exempt_remove", description="Remove a channel from the exemption list.")
+    @app_commands.describe(channel="The channel to remove from the exemption list.")
+    async def server_translate_exempt_remove(self, interaction: discord.Interaction, channel: discord.TextChannel):
+        await self.db.remove_auto_translate_exemption(channel.id)
+        await interaction.response.send_message(f"✅ {channel.mention} has been **removed** from the exemption list.", ephemeral=True)
+
+    @server_translate.command(name="exempt_list", description="List all channels exempt from server-wide translation.")
+    async def server_translate_exempt_list(self, interaction: discord.Interaction):
+        if not interaction.guild_id:
+            await interaction.response.send_message("This command must be run in a server.", ephemeral=True)
+            return
+            
+        await interaction.response.defer(ephemeral=True)
+        exempt_channels = await self.db.get_exempt_channels(interaction.guild_id)
+
+        if not exempt_channels:
+            await interaction.followup.send("There are no channels on the exemption list for this server.", ephemeral=True)
+            return
+
+        embed = discord.Embed(title="Exempt Channels", color=discord.Color.orange())
+        description = "These channels will be ignored by the server-wide auto-translator:\n\n"
+        for record in exempt_channels:
+            channel = self.bot.get_channel(record['channel_id'])
+            description += f"{channel.mention if channel else f'`{record['channel_id']}`'}\n"
+        
+        embed.description = description
+        await interaction.followup.send(embed=embed, ephemeral=True)
+
+
 async def setup(bot: commands.Bot):
     """The setup function for the cog."""
     if not all(hasattr(bot, attr) for attr in ['db_manager', 'usage_manager', 'gcp_pool_manager']):
         log.critical("AdminCog cannot be loaded: Core services not found on bot object.")
         return
-        
-    await bot.add_cog(AdminCog(bot, bot.db_manager, bot.usage_manager, bot.gcp_pool_manager))
+    
+    cog = AdminCog(bot, bot.db_manager, bot.usage_manager, bot.gcp_pool_manager)
+    
+    # Manually add all command groups to the bot's tree.
+    # This is crucial for them to be registered with Discord.
+    bot.tree.add_command(cog.hub)
+    bot.tree.add_command(cog.autotranslate)
+    bot.tree.add_command(cog.server_translate)
+    
+    await bot.add_cog(cog)

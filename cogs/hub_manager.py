@@ -345,6 +345,11 @@ class HubManagerCog(commands.Cog, name="Hub Manager"):
                     await thread.edit(archived=False, locked=False)
                     await self.db.create_hub_record(thread.id, channel.id, interaction.guild_id, language, interaction.user.id, expires_at)
 
+                    if interaction.guild_id:
+                        await self.db.add_auto_translate_exemption(interaction.guild_id, channel.id)
+                        await self.db.add_auto_translate_exemption(interaction.guild_id, thread.id)
+                        log.info(f"Re-confirming exemption for reactivated hub {thread.id} and source {channel.id}.")
+
                     expiry_msg_part = f"will now expire at {discord.utils.format_dt(expires_at, style='F')}" if expires_at else "is now permanent"
                     reactivation_msg = f"This hub has been reactivated by {interaction.user.mention} and {expiry_msg_part}."
                     await self._send_localized_hub_message(thread, language, reactivation_msg)
@@ -377,6 +382,11 @@ class HubManagerCog(commands.Cog, name="Hub Manager"):
             return
 
         await self.db.create_hub_record(thread.id, channel.id, interaction.guild_id, language, interaction.user.id, expires_at)
+
+        if interaction.guild_id:
+            await self.db.add_auto_translate_exemption(interaction.guild_id, channel.id)
+            await self.db.add_auto_translate_exemption(interaction.guild_id, thread.id)
+            log.info(f"Automatically exempted new hub {thread.id} and source channel {channel.id}.")
         
         expiry_msg_part = f"This session expires at {discord.utils.format_dt(expires_at, style='F')}." if expires_at else "This is a permanent hub."
         welcome_template = f"🌍 Welcome {interaction.user.mention} to the `{language}` translation hub for {channel.mention}!\n\n{expiry_msg_part}"

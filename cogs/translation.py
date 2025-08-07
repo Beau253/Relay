@@ -157,43 +157,69 @@ class TranslationCog(commands.Cog, name="Translation"):
     async def on_message(self, message: discord.Message):
         if message.author.bot or message.webhook_id or not message.guild or not isinstance(message.channel, discord.TextChannel) or not message.content:
             return
+
+        # --- Translation Rule Hierarchy ---
+        # 1. Check for a channel-specific rule
         config = await self.db.get_auto_translate_config(message.channel.id)
+
+        # 2. If no channel rule, check for a server-wide rule
         if not config:
-            return
+            # 2a. First, check if the channel is explicitly exempt
+            if await self.db.is_channel_exempt(message.channel.id):
+                return
+            
+            # 2b. If not exempt, get the server config to find the server-wide language
+            guild_config = await self.db.get_guild_config(message.guild.id)
+            server_lang = guild_config.get('server_wide_language') if guild_config else None
+            
+            if server_lang:
+                # Create a "virtual" config for the server-wide rule with default settings
+                config = {
+                    'target_language_code': server_lang,
+                    'impersonate': True,
+                    'delete_original': False
+                }
+            else:
+                # No channel rule and no server rule, so we are done.
+                return
+        
         target_lang = config['target_language_code']
 
+        # --- Pre-filter to save API calls ---
         try:
             detected_lang = detect(message.content)
             if detected_lang.split('-')[0] == target_lang.split('-')[0]:
                 return
         except LangDetectException:
-            pass
+            pass # Fallback to Google API for short/unclear text
 
+        # --- Perform Translation ---
         translation_result = await self.perform_translation(message.content, target_lang)
         if not translation_result: return
 
         translated_text = translation_result.get('translated_text')
         detected_language = translation_result.get('detected_language_code')
         
+        # Final check: Don't post if translation failed or resulted in the same text
         if not translated_text or not detected_language or detected_language == "error" or translated_text == message.content:
             return
         
+        # --- Post Translation and Delete Original if configured ---
         if config.get('impersonate', False):
             await self._send_webhook_as_reply(message, translated_text)
         else:
             await message.reply(content=translated_text, mention_author=False)
 
-        # Finally, delete the original message if the setting is enabled
         if config.get('delete_original', False):
             try:
                 await message.delete()
             except discord.Forbidden:
                 log.warning(f"Failed to delete original message {message.id} in #{message.channel.name}: Missing 'Manage Messages' permission.")
             except discord.NotFound:
-                pass # Message was likely already deleted, which is fine.
+                pass
             except Exception as e:
                 log.error(f"An unexpected error occurred while deleting message {message.id}: {e}", exc_info=True)
-
+                
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
         if payload.user_id == self.bot.user.id or (payload.member and payload.member.bot):
