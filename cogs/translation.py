@@ -124,8 +124,9 @@ class TranslationCog(commands.Cog, name="Translation"):
 
     def cog_unload(self):
         self.bot.tree.remove_command(self.translate_message_menu.name, type=self.translate_message_menu.type)
+        self.bot.tree.remove_command(self.add_to_dictionary_menu.name, type=self.add_to_dictionary_menu.type)
 
-    async def perform_translation(self, original_message_content: str, target_lang: str):
+    async def perform_translation(self, original_message_content: str, target_lang: str, glossary: Optional[List[str]] = None):
         if not self.translator.is_initialized:
             return {"translated_text": "Translation service is currently unavailable.", "detected_language_code": "error"}
         if self.usage.check_limit_exceeded(len(original_message_content)):
