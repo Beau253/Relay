@@ -144,6 +144,10 @@ class AdminCog(commands.Cog, name="Admin"):
             log.error(f"Error setting guild config in admin command for guild {guild_id}: {e}", exc_info=True)
             await interaction.followup.send("An error occurred while trying to set guild configuration.", ephemeral=True)
 
+    except Exception as e:
+            log.error(f"Error setting guild config for guild {guild_id}: {e}", exc_info=True)
+            await interaction.followup.send("An error occurred while trying to set guild configuration.", ephemeral=True)
+
     @app_commands.command(name="sync_members", description="Syncs all members, assigning the setup role to those who haven't set a language.")
     async def sync_members(self, interaction: discord.Interaction):
         """
@@ -315,21 +319,28 @@ class AdminCog(commands.Cog, name="Admin"):
             ephemeral=True
         )
 
+    # This is the new autocomplete function
+    async def autotranslate_channel_autocomplete(self, interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
+        if not interaction.guild_id: return []
+        configs = await self.db.get_all_auto_translate_configs_for_guild(interaction.guild_id)
+        choices = []
+        for config in configs:
+            channel = self.bot.get_channel(config['channel_id'])
+            if channel and current.lower() in channel.name.lower():
+                choices.append(app_commands.Choice(name=f"#{channel.name}", value=str(channel.id)))
+        return choices[:25]
+
     @autotranslate.command(name="delete", description="Disable auto-translation for a channel.")
-    @app_commands.autocomplete(channel='autotranslate_channel_autocomplete')
+    @app_commands.autocomplete(channel='autotranslate_channel_autocomplete') # <-- Applying the autocomplete
     @app_commands.describe(channel="The channel to disable auto-translation on.")
-    async def autotranslate_delete(self, interaction: discord.Interaction, channel: str):
-        # Convert the channel ID string from the autocomplete back into an integer
+    async def autotranslate_delete(self, interaction: discord.Interaction, channel: str): # <-- Changed to accept a string
         try:
             channel_id = int(channel)
         except ValueError:
             await interaction.response.send_message("Invalid channel selected.", ephemeral=True)
             return
-            
-        # Fetch the channel object to get its name for the confirmation message
         channel_obj = self.bot.get_channel(channel_id)
         channel_mention = f"#{channel_obj.name}" if channel_obj else f"channel ID `{channel_id}`"
-
         await self.db.remove_auto_translate_channel(channel_id)
         await interaction.response.send_message(f"✅ Auto-translation has been **disabled** for {channel_mention}.", ephemeral=True)
 
@@ -359,39 +370,22 @@ class AdminCog(commands.Cog, name="Admin"):
         embed.description = description
         await interaction.followup.send(embed=embed, ephemeral=True)
 
+    # --- Server-Wide Auto-Translate Command Group ---
     server_translate = app_commands.Group(name="server_translate", description="Manage server-wide auto-translation.")
 
-    @server_translate.command(name="set", description="Set a default translation language for all non-exempt channels.")   
+    @server_translate.command(name="set", description="Set a default translation language for all non-exempt channels.")
     @app_commands.autocomplete(language=language_autocomplete)
-    @app_commands.describe(
-        language="The language to translate all messages INTO by default.",
-        impersonate="Post translations using the original user's name and avatar (default: True).",
-        delete_original_message="Delete the original message after translating (default: False)."
-    )
-    async def server_translate_set(self, interaction: discord.Interaction, language: str, impersonate: bool = True, delete_original_message: bool = False):
+    @app_commands.describe(language="The language to translate all messages INTO by default.", impersonate="Post translations using the original user's name and avatar.", delete_original_message="Delete the original message after translating.")
+    async def server_translate_set(self, interaction: discord.Interaction, language: str, impersonate: bool = False, delete_original_message: bool = False):
         if not interaction.guild_id: return
-        await self.db.set_guild_config(
-            guild_id=interaction.guild_id, 
-            server_wide_language=language,
-            sw_impersonate=impersonate,
-            sw_delete_original=delete_original_message
-        )
-        
+        await self.db.set_guild_config(guild_id=interaction.guild_id, server_wide_language=language, sw_impersonate=impersonate, sw_delete_original=delete_original_message)
         impersonate_status = "enabled" if impersonate else "disabled"
         delete_status = "enabled" if delete_original_message else "disabled"
-
-        await interaction.response.send_message(
-            f"✅ Server-wide auto-translation settings have been updated.\n"
-            f"- **Target Language:** `{language}`\n"
-            f"- **Impersonation:** `{impersonate_status}`\n"
-            f"- **Delete Original:** `{delete_status}`",
-            ephemeral=True
-        )
+        await interaction.response.send_message(f"✅ Server-wide auto-translation settings updated.\n- **Target Language:** `{language}`\n- **Impersonation:** `{impersonate_status}`\n- **Delete Original:** `{delete_status}`", ephemeral=True)
 
     @server_translate.command(name="disable", description="Disable the server-wide auto-translation rule.")
     async def server_translate_disable(self, interaction: discord.Interaction):
         if not interaction.guild_id: return
-        # Setting the language to NULL effectively disables it.
         await self.db.set_guild_config(guild_id=interaction.guild_id, server_wide_language=None)
         await interaction.response.send_message("✅ Server-wide auto-translation has been **disabled**.", ephemeral=True)
 
@@ -413,21 +407,17 @@ class AdminCog(commands.Cog, name="Admin"):
         if not interaction.guild_id:
             await interaction.response.send_message("This command must be run in a server.", ephemeral=True)
             return
-            
         await interaction.response.defer(ephemeral=True)
         exempt_channels = await self.db.get_exempt_channels(interaction.guild_id)
-
         if not exempt_channels:
             await interaction.followup.send("There are no channels on the exemption list for this server.", ephemeral=True)
             return
-
         embed = discord.Embed(title="Exempt Channels", color=discord.Color.orange())
         description = "These channels will be ignored by the server-wide auto-translator:\n\n"
         for record in exempt_channels:
             channel = self.bot.get_channel(record['channel_id'])
             channel_text = channel.mention if channel else f"`ID: {record['channel_id']}`"
             description += f"- {channel_text}\n"
-        
         embed.description = description
         await interaction.followup.send(embed=embed, ephemeral=True)
 
@@ -436,16 +426,12 @@ class AdminCog(commands.Cog, name="Admin"):
         if not interaction.guild_id:
             await interaction.response.send_message("This command must be run in a server.", ephemeral=True)
             return
-
         guild_config = await self.db.get_guild_config(interaction.guild_id)
-        
         embed = discord.Embed(title="Server-Wide Translation Status", color=discord.Color.blue())
-
         if guild_config and guild_config.get('server_wide_language'):
             lang = guild_config['server_wide_language']
             impersonate_status = "✅ Enabled" if guild_config.get('sw_impersonate', False) else "❌ Disabled"
             delete_status = "✅ Enabled" if guild_config.get('sw_delete_original', False) else "❌ Disabled"
-            
             embed.description = f"Server-wide translation is **ENABLED**."
             embed.add_field(name="Target Language", value=f"`{lang}`", inline=False)
             embed.add_field(name="Impersonate Users", value=impersonate_status, inline=False)
@@ -453,7 +439,6 @@ class AdminCog(commands.Cog, name="Admin"):
         else:
             embed.description = "Server-wide translation is currently **DISABLED**."
             embed.color = discord.Color.red()
-
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
@@ -462,7 +447,4 @@ async def setup(bot: commands.Bot):
     if not all(hasattr(bot, attr) for attr in ['db_manager', 'usage_manager', 'gcp_pool_manager']):
         log.critical("AdminCog cannot be loaded: Core services not found on bot object.")
         return
-        
-    # The bot.add_cog call automatically finds and registers all commands and groups within the cog.
-    # The manual bot.tree.add_command calls were redundant and caused the crash.
     await bot.add_cog(AdminCog(bot, bot.db_manager, bot.usage_manager, bot.gcp_pool_manager))
