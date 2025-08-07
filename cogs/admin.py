@@ -407,13 +407,7 @@ async def setup(bot: commands.Bot):
     if not all(hasattr(bot, attr) for attr in ['db_manager', 'usage_manager', 'gcp_pool_manager']):
         log.critical("AdminCog cannot be loaded: Core services not found on bot object.")
         return
-    
-    cog = AdminCog(bot, bot.db_manager, bot.usage_manager, bot.gcp_pool_manager)
-
-    # Manually add all command groups to the bot's tree.
-    # This is crucial for them to be registered with Discord.
-    bot.tree.add_command(cog.hub_admin)
-    bot.tree.add_command(cog.autotranslate)
-    bot.tree.add_command(cog.server_translate)
-    
-    await bot.add_cog(cog)
+        
+    # The bot.add_cog call automatically finds and registers all commands and groups within the cog.
+    # The manual bot.tree.add_command calls were redundant and caused the crash.
+    await bot.add_cog(AdminCog(bot, bot.db_manager, bot.usage_manager, bot.gcp_pool_manager))
