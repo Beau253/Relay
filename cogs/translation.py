@@ -153,10 +153,39 @@ class TranslationCog(commands.Cog, name="Translation"):
         except Exception:
             await interaction.response.send_message("An error occurred while saving your preference.", ephemeral=True)
 
+    def _is_likely_english_slang(self, text: str) -> bool:
+        """
+        A heuristic pre-filter to catch exaggerated English or short, common phrases
+        before they hit the API. Returns True if the text is likely slang.
+        """
+        # Rule 1: Check for excessive character repetition (e.g., "heyyyyy", "soooooo")
+        if re.search(r'(.)\1{3,}', text):
+            return True
+
+        # Rule 2: Check for very short, common English words that can be misidentified.
+        # This prevents single-word replies like "ok", "lol", "ty" from being translated.
+        lower_text = text.lower()
+        if lower_text in ["ok", "lol", "ty", "thanks", "omg", "heh", "okey", "thx", "np"]:
+            return True
+
+        # Rule 3: Check for messages that are just a single, non-translatable word.
+        if len(text.split()) == 1 and not re.search(r'\s', text):
+            # A simple check: if it's short and has no vowels, it's likely an acronym or slang.
+            if len(text) < 6 and not any(char in 'aeiouAEIOU' for char in text):
+                return True
+
+        return False
+
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         if message.author.bot or message.webhook_id or not message.guild or not isinstance(message.channel, discord.TextChannel) or not message.content:
             return
+            
+        # --- NEW HEURISTIC PRE-FILTER ---
+        if self._is_likely_english_slang(message.content):
+            log.info(f"Auto-translate skipped: Heuristic pre-filter identified message '{message.content}' as likely slang. No API call made.")
+            return
+        # --- END OF HEURISTIC PRE-FILTER ---
 
         # --- Translation Rule Hierarchy ---
         # 1. Check for a channel-specific rule
