@@ -282,13 +282,12 @@ class AdminCog(commands.Cog, name="Admin"):
             await interaction.followup.send("Failed to update hub expiration in the database.", ephemeral=True)
             
     # --- Hub Management Command Group ---
-    hub = app_commands.Group(name="hub", description="Manage Translation Hubs.")
+    hub_admin = app_commands.Group(name="hub_admin", description="Admin commands for managing Translation Hubs.")
 
-    @hub.command(name="set_expiry", description="Sets or removes the expiration for a Translation Hub.")
+    @hub_admin.command(name="set_expiry", description="Sets or removes the expiration for an existing Translation Hub.")
     @app_commands.describe(duration="The duration until expiry (e.g., '30m', '2h', '7d') or 'permanent'.")
     async def hub_set_expiry(self, interaction: discord.Interaction, duration: str):
-        # This is a wrapper to call the existing logic.
-        # We need this to exist as a separate function to be added to the group.
+        # This command calls the main logic and must be run in the hub's thread.
         await self.set_hub_expiry(interaction, duration)
 
     # --- Auto-Translate Command Group ---
@@ -410,10 +409,10 @@ async def setup(bot: commands.Bot):
         return
     
     cog = AdminCog(bot, bot.db_manager, bot.usage_manager, bot.gcp_pool_manager)
-    
+
     # Manually add all command groups to the bot's tree.
     # This is crucial for them to be registered with Discord.
-    bot.tree.add_command(cog.hub)
+    bot.tree.add_command(cog.hub_admin)
     bot.tree.add_command(cog.autotranslate)
     bot.tree.add_command(cog.server_translate)
     
