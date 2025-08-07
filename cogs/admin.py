@@ -315,31 +315,35 @@ class AdminCog(commands.Cog, name="Admin"):
             ephemeral=True
         )
 
-    # This is the new autocomplete function
-    async def autotranslate_channel_autocomplete(self, interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
-        if not interaction.guild_id: return []
+    @autotranslate.command(name="delete", description="Disable auto-translation for a channel.")
+    @app_commands.describe(channel="The channel to disable auto-translation on.")
+    async def autotranslate_delete(self, interaction: discord.Interaction, channel: str):
+        try:
+            channel_id = int(channel)
+        except ValueError:
+            await interaction.response.send_message("Invalid channel selected.", ephemeral=True)
+            return
+            
+        channel_obj = self.bot.get_channel(channel_id)
+        channel_mention = f"#{channel_obj.name}" if channel_obj else f"channel ID `{channel_id}`"
+
+        await self.db.remove_auto_translate_channel(channel_id)
+        await interaction.response.send_message(f"✅ Auto-translation has been **disabled** for {channel_mention}.", ephemeral=True)
+
+    @autotranslate_delete.autocomplete('channel')
+    async def autotranslate_delete_autocomplete(self, interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
+        """Shows only channels with active auto-translate rules."""
+        if not interaction.guild_id:
+            return []
+        
         configs = await self.db.get_all_auto_translate_configs_for_guild(interaction.guild_id)
         choices = []
         for config in configs:
             channel = self.bot.get_channel(config['channel_id'])
             if channel and current.lower() in channel.name.lower():
                 choices.append(app_commands.Choice(name=f"#{channel.name}", value=str(channel.id)))
+        
         return choices[:25]
-
-    @autotranslate.command(name="delete", description="Disable auto-translation for a channel.")
-    @app_commands.autocomplete(channel='autotranslate_channel_autocomplete') # <-- Applying the autocomplete
-    @app_commands.describe(channel="The channel to disable auto-translation on.")
-    async def autotranslate_delete(self, interaction: discord.Interaction, channel: str): # <-- Changed to accept a string
-        try:
-            channel_id = int(channel)
-        except ValueError:
-            await interaction.response.send_message("Invalid channel selected.", ephemeral=True)
-            return
-        channel_obj = self.bot.get_channel(channel_id)
-        channel_mention = f"#{channel_obj.name}" if channel_obj else f"channel ID `{channel_id}`"
-        await self.db.remove_auto_translate_channel(channel_id)
-        await interaction.response.send_message(f"✅ Auto-translation has been **disabled** for {channel_mention}.", ephemeral=True)
-
     @autotranslate.command(name="list", description="List all channels with auto-translation enabled.")
     async def autotranslate_list(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
