@@ -131,8 +131,15 @@ class TranslationCog(commands.Cog, name="Translation"):
             return {"translated_text": "Translation service is currently unavailable.", "detected_language_code": "error"}
         if self.usage.check_limit_exceeded(len(original_message_content)):
             return {"translated_text": "The monthly translation limit has been reached.", "detected_language_code": "error"}
-        
-        translation_result = await self.translator.translate_text(original_message_content, target_lang)
+
+        # --- FINAL SANITIZATION ---
+        # This is a safety net to ensure the language code is ALWAYS in the correct format.
+        # It extracts the two-letter code from formats like "English (en)" or "en-US".
+        lang_code_match = re.search(r'\b([a-z]{2}(?:-[A-Z]{2})?)\b', target_lang)
+        sanitized_lang = lang_code_match.group(1) if lang_code_match else target_lang
+        # --- END SANITIZATION ---
+
+        translation_result = await self.translator.translate_text(original_message_content, sanitized_lang, glossary=glossary)
         if translation_result and translation_result.get('translated_text') and translation_result.get("detected_language_code") != "error":
             await self.usage.record_usage(len(original_message_content))
         return translation_result
