@@ -84,14 +84,10 @@ class TextTranslator:
             return None
             
         # --- Glossary Pre-processing ---
-        # Replace glossary terms with placeholders BEFORE sending to the API.
         placeholders = {}
         if glossary and text:
-            # Sort glossary by length descending to match longer phrases first
             sorted_glossary = sorted(glossary, key=len, reverse=True)
             for i, term in enumerate(sorted_glossary):
-                # Use regex to find the term case-insensitively and replace it
-                # We store the original casing in our placeholders dict.
                 placeholder = f"__RELAY_GLOSSARY_{i}__"
                 
                 def replace_and_store(match):
@@ -99,11 +95,52 @@ class TextTranslator:
                     placeholders[placeholder] = original_word
                     return placeholder
                 
-                # Use word boundaries (\b) to avoid replacing parts of words
                 text = re.sub(r'\b' + re.escape(term) + r'\b', replace_and_store, text, flags=re.IGNORECASE)
 
-        # ... (language detection and other logic remains the same) ...
-        # ...
+        # --- Language Code Mapping & Debugging ---
+        effective_target_language = 'zh' if target_language == 'zh-TW' else target_language
+        
+        # --- FIXED: Restored the 'loop' variable definition ---
+        loop = asyncio.get_running_loop()
+
+        # --- Language Detection (if no source provided) ---
+        detected_language_code = source_language
+        if not detected_language_code:
+            try:
+                response = await loop.run_in_executor(
+                    None,
+                    lambda: self.client.detect_language(
+                        parent=self.parent,
+                        content=text,
+                        mime_type="text/plain",
+                    )
+                )
+                if response.languages:
+                    detected_language_code = response.languages[0].language_code
+                    log.info(f"Language detection: Detected '{detected_language_code}' for text: '{text[:50]}...'")
+                else:
+                    raise ValueError("Detection response was empty.")
+            except Exception as e:
+                log.error(f"Language detection failed: {e}", exc_info=True)
+                return None
+
+        # --- Skip translating if source and target are the same ---
+        if detected_language_code and detected_language_code.split('-')[0] == effective_target_language.split('-')[0]:
+            log.info(f"Skipping translation: Detected source ('{detected_language_code}') and target ('{effective_target_language}') are effectively the same.")
+            # Restore placeholders even if we skip translation to return the original text correctly
+            if placeholders:
+                for placeholder, original_word in placeholders.items():
+                    text = text.replace(placeholder, original_word)
+            return {"translated_text": text, "detected_language_code": detected_language_code}
+
+        api_params = {
+            "parent": self.parent,
+            "contents": [text],
+            "target_language_code": effective_target_language,
+            "source_language_code": detected_language_code,
+            "mime_type": "text/plain",
+        }
+        log.info(f"Calling Google Translate API with params: {api_params}")
 
         try:
             response = await loop.run_in_executor(
@@ -114,7 +151,6 @@ class TextTranslator:
             if response and response.translations:
                 translated_text = response.translations[0].translated_text
                 
-                # --- FIXED: Added post-translation logic to restore glossary terms ---
                 if placeholders:
                     for placeholder, original_word in placeholders.items():
                         translated_text = translated_text.replace(placeholder, original_word)
@@ -126,5 +162,8 @@ class TextTranslator:
                 return None
 
         except Exception as e:
-            log.error(f"An error occurred during translation to '{effective_target_language}': {e}", exc_info=True)
+            # --- FIXED: Made the error log more robust ---
+            # Use target_language as a fallback in case the error happens before effective_target_language is set.
+            lang_for_log = locals().get('effective_target_language', target_language)
+            log.error(f"An error occurred during translation to '{lang_for_log}': {e}", exc_info=True)
             return None
