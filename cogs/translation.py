@@ -129,6 +129,15 @@ class TranslationCog(commands.Cog, name="Translation"):
     async def perform_translation(self, original_message_content: str, target_lang: str, glossary: Optional[List[str]] = None, source_lang: Optional[str] = None):
         if not self.translator.is_initialized:
             return {"translated_text": "Translation service is currently unavailable.", "detected_language_code": "error"}
+        
+        # --- FIXED: Added a pre-check to ignore messages that are full glossary terms ---
+        # Glossary terms are stored in lowercase, so we match against the lowercased, stripped message.
+        if glossary and original_message_content.strip().lower() in glossary:
+            log.info(f"Auto-translate skipped: Message content '{original_message_content}' is a protected glossary term. No API call made.")
+            # Return a result that mimics a translation of identical text.
+            # This ensures the `on_message` listener will correctly ignore it.
+            return {"translated_text": original_message_content, "detected_language_code": source_lang or "glossary"}
+
         if self.usage.check_limit_exceeded(len(original_message_content)):
             return {"translated_text": "The monthly translation limit has been reached.", "detected_language_code": "error"}
 
