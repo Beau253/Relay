@@ -9,6 +9,7 @@ from discord import app_commands
 from cogs.hub_manager import HubManagerCog
 from langdetect import detect, LangDetectException
 from typing import Optional, List
+from thefuzz import process, fuzz # For fuzzy string matching
 
 # Import our core services and utilities
 from core import DatabaseManager, TextTranslator, UsageManager, language_autocomplete, SUPPORTED_LANGUAGES
@@ -34,22 +35,98 @@ class GlossaryEntryModal(discord.ui.Modal, title='Add to Dictionary'):
         max_length=100
     )
 
-    def __init__(self, db: DatabaseManager):
+    def __init__(self, db: DatabaseManager, thread_to_delete: Optional[discord.Thread] = None):
         super().__init__()
         self.db = db
+        self.thread_to_delete = thread_to_delete
 
     async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
         term = self.term_input.value.strip()
         if not term:
-            await interaction.response.send_message("The term cannot be empty.", ephemeral=True)
+            await interaction.followup.send("The term cannot be empty.", ephemeral=True)
             return
         
         if not interaction.guild_id:
+            await interaction.followup.send("This command can only be used in a server.", ephemeral=True)
             return
 
         await self.db.add_glossary_term(interaction.guild_id, term)
         log.info(f"User {interaction.user.id} added term '{term}' to glossary for guild {interaction.guild_id}.")
-        await interaction.response.send_message(f"✅ The term `{term}` has been added to the server's dictionary and will be protected from translation.", ephemeral=True)
+        await interaction.followup.send(f"✅ The term `{term}` has been added to the server's dictionary.", ephemeral=True)
+
+        # If a thread was passed to the modal, it means it came from the correction UI.
+        # Delete the thread after the action is complete.
+        if self.thread_to_delete:
+            try:
+                log.info(f"Deleting correction thread {self.thread_to_delete.id} after dictionary add.")
+                await self.thread_to_delete.delete()
+            except discord.HTTPException as e:
+                log.error(f"Failed to delete correction thread {self.thread_to_delete.id}: {e}")
+
+class CorrectionView(discord.ui.View):
+    """A view with buttons to handle a potential auto-correction within a private thread."""
+    def __init__(self, cog: "TranslationCog", original_message: discord.Message, suggested_term: str):
+        # Timeout is 5 minutes
+        super().__init__(timeout=300) 
+        self.cog = cog
+        self.original_message = original_message
+        self.suggested_term = suggested_term
+        self.original_author_id = original_message.author.id
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        """Ensures only the original message author can use the buttons."""
+        if interaction.user.id != self.original_author_id:
+            await interaction.response.send_message("You are not the author of this message.", ephemeral=True)
+            return False
+        return True
+
+    async def on_timeout(self):
+        """When the view times out, delete the private thread."""
+        # The view's message is the bot's interactive prompt. Its channel is the thread.
+        if self.message and isinstance(self.message.channel, discord.Thread):
+            try:
+                log.info(f"Correction thread {self.message.channel.id} timed out. Deleting.")
+                await self.message.channel.delete()
+            except discord.NotFound:
+                pass # Thread already deleted, which is fine.
+
+    @discord.ui.button(label="Ignore", style=discord.ButtonStyle.secondary)
+    async def ignore_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Deletes the private thread. The original message remains."""
+        await interaction.response.defer()
+        if isinstance(interaction.channel, discord.Thread):
+            try:
+                log.info(f"User ignored correction. Deleting thread {interaction.channel.id}.")
+                await interaction.channel.delete()
+            except discord.HTTPException as e:
+                log.error(f"Failed to delete thread {interaction.channel.id} on 'Ignore': {e}")
+
+    @discord.ui.button(label="Send", style=discord.ButtonStyle.success)
+    async def send_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Sends the corrected message, deletes the original, and deletes the thread."""
+        await interaction.response.defer()
+        try:
+            await self.cog._send_corrected_message(self.original_message, self.suggested_term)
+            await self.original_message.delete()
+            if isinstance(interaction.channel, discord.Thread):
+                await interaction.channel.delete()
+        except discord.Forbidden:
+            log.error(f"Missing permissions to manage messages/webhooks for correction 'Send' action.")
+            if interaction.channel:
+                 await interaction.followup.send("I lack permissions to send the message or delete the original.", ephemeral=False)
+        except Exception as e:
+            log.error(f"Error during correction 'Send' action: {e}", exc_info=True)
+    
+    @discord.ui.button(label="Add to Dictionary", style=discord.ButtonStyle.primary)
+    async def add_to_dictionary_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Presents a modal to add the user's *original* term to the dictionary."""
+        thread = interaction.channel if isinstance(interaction.channel, discord.Thread) else None
+        
+        modal = GlossaryEntryModal(self.cog.db, thread_to_delete=thread)
+        modal.term_input.default = self.original_message.content.strip()
+        await interaction.response.send_modal(modal)
+
 
 @app_commands.guild_only()
 class TranslationCog(commands.Cog, name="Translation"):
@@ -165,7 +242,6 @@ class TranslationCog(commands.Cog, name="Translation"):
             await interaction.followup.send("I don't know your preferred language yet! Use /set_language to set it up.", ephemeral=True)
             return
         
-        # --- Glossary Integration ---
         glossary = await self.db.get_glossary_terms(interaction.guild_id) if interaction.guild_id else []
         
         translated_text = ""
@@ -185,17 +261,13 @@ class TranslationCog(commands.Cog, name="Translation"):
             reply_embed.set_footer(text=f"Original message by {message.author.display_name}")
             await interaction.followup.send(embed=reply_embed)
         elif translated_embeds:
-            if translated_text:
-                await interaction.followup.send(translated_text, embeds=translated_embeds)
-            else:
-                await interaction.followup.send(embeds=translated_embeds)
+            await interaction.followup.send(translated_text or None, embeds=translated_embeds)
         elif not translated_text and message.content:
              await interaction.followup.send("An error occurred during translation.", ephemeral=True)
 
     async def add_to_dictionary_callback(self, interaction: discord.Interaction, message: discord.Message):
         """The logic for the 'Add to Dictionary' context menu."""
-        modal = GlossaryEntryModal(self.db)
-        # Pre-fill the form with the content of the message the user clicked on
+        modal = GlossaryEntryModal(self.db, thread_to_delete=None)
         if message.content:
             modal.term_input.default = message.content
         await interaction.response.send_modal(modal)
@@ -217,6 +289,22 @@ class TranslationCog(commands.Cog, name="Translation"):
             log.error(f"Failed to get/create webhook for #{channel.name}: {e}", exc_info=True)
             return None
     
+    async def _send_corrected_message(self, original_message: discord.Message, corrected_text: str):
+        """Uses a webhook to send the corrected text, impersonating the original author."""
+        webhook = await self._get_webhook(original_message.channel)
+        if not webhook:
+            await original_message.channel.send(f"{original_message.author.mention} (corrected): {corrected_text}")
+            return
+        try:
+            await webhook.send(
+                content=corrected_text,
+                username=original_message.author.display_name,
+                avatar_url=original_message.author.display_avatar.url,
+                allowed_mentions=discord.AllowedMentions.none()
+            )
+        except (discord.Forbidden, discord.NotFound):
+             await original_message.channel.send(f"{original_message.author.mention} (corrected): {corrected_text}")
+
     async def _send_webhook_as_reply(self, message: discord.Message, content: str):
         webhook = await self._get_webhook(message.channel)
         if not webhook:
@@ -276,11 +364,46 @@ class TranslationCog(commands.Cog, name="Translation"):
         if message.author.bot or message.webhook_id or not message.guild or not isinstance(message.channel, discord.TextChannel) or not message.content:
             return
             
-        # --- NEW HEURISTIC PRE-FILTER ---
         if self._is_likely_english_slang(message.content):
-            log.info(f"Auto-translate skipped: Heuristic pre-filter identified message '{message.content}' as likely slang. No API call made.")
+            log.info(f"Auto-translate skipped: Heuristic pre-filter identified message '{message.content}' as likely slang.")
             return
-        # --- END OF HEURISTIC PRE-FILTER ---
+
+        # --- Fuzzy Matching for Auto-Correction Suggestions ---
+        glossary = await self.db.get_glossary_terms(message.guild.id)
+        if glossary:
+            best_match, score = process.extractOne(message.content.lower(), glossary, scorer=fuzz.ratio)
+            
+            SIMILARITY_THRESHOLD = 90
+            if score >= SIMILARITY_THRESHOLD and score < 100:
+                log.info(f"Found close glossary match for '{message.content}': '{best_match}' (Score: {score}). Creating correction thread.")
+                try:
+                    thread_name = f"Correction for {message.author.display_name}"
+                    thread = await message.create_thread(name=thread_name)
+                    
+                    user_locale = await self.db.get_user_preferences(message.author.id) or 'en'
+                    
+                    explainer_text = {
+                        'en': "Our dictionary found a potential typo in your message. Please review the suggestion below and choose an option.",
+                        'es': "Nuestro diccionario encontró un posible error tipográfico en tu mensaje. Revisa la sugerencia a continuación y elige una opción.",
+                    }.get(user_locale.split('-')[0], "Our dictionary found a potential typo in your message. Please review the suggestion below and choose an option.")
+
+                    context_embed = discord.Embed(title="Original Message", description=f"> {message.content}", color=discord.Color.orange())
+                    await thread.send(explainer_text, embed=context_embed)
+
+                    suggestion_prompt = {
+                        'en': f"Did you mean: `{best_match}`?",
+                        'es': f"¿Quisiste decir: `{best_match}`?",
+                    }.get(user_locale.split('-')[0], f"Did you mean: `{best_match}`?")
+
+                    view = CorrectionView(self, message, best_match)
+                    await thread.send(suggestion_prompt, view=view)
+
+                except discord.Forbidden:
+                    log.error(f"Failed to create correction thread in #{message.channel.name}: Missing 'Create Private Threads' permission.")
+                except Exception as e:
+                    log.error(f"An unexpected error occurred during correction thread creation: {e}", exc_info=True)
+                
+                return # Stop further processing
 
         # --- Translation Rule Hierarchy ---
         # 1. Check for a channel-specific rule
@@ -390,7 +513,7 @@ class TranslationCog(commands.Cog, name="Translation"):
         log.info(f"Flag reaction translation triggered by {payload.member.display_name if payload.member else 'Unknown User'} for language '{target_language}'.")
         async with channel.typing():
             # --- Glossary Integration ---
-            glossary = await self.db.get_glossary_terms(interaction.guild_id) if interaction.guild_id else []
+            glossary = await self.db.get_glossary_terms(payload.guild_id) if payload.guild_id else []
 
             translated_text = ""
             if message.content:

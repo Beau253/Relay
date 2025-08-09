@@ -16,3 +16,5 @@ python-dotenv
 # PostgreSQL database driver
 asyncpg
 
+# For fuzzy string matching
+thefuzz

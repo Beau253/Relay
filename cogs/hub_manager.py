@@ -214,13 +214,14 @@ class HubManagerCog(commands.Cog, name="Hub Manager"):
             log.error(f"Failed to send webhook message to {channel.id}: {e}")
 
     @staticmethod
-    async def _translate_embed(translator: TextTranslator, embed: discord.Embed, target_lang: str, source_lang: Optional[str] = None) -> discord.Embed:
+    async def _translate_embed(translator: TextTranslator, embed: discord.Embed, target_lang: str, source_lang: Optional[str] = None, glossary: Optional[List[str]] = None) -> discord.Embed:
         """Takes an embed, translates its text, and returns a new translated embed."""
         new_embed = embed.copy()
 
         async def translate_field(text):
             if not text: return text
-            result = await translator.translate_text(text, target_lang, source_lang)
+            # Pass the glossary to the underlying translation call
+            result = await translator.translate_text(text, target_lang, source_lang=source_lang, glossary=glossary)
             return result['translated_text'] if result else text
 
         if embed.title:
