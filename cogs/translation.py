@@ -341,19 +341,23 @@ class TranslationCog(commands.Cog, name="Translation"):
         A heuristic pre-filter to catch exaggerated English or short, common phrases
         before they hit the API. Returns True if the text is likely slang.
         """
+        lower_text = text.lower()
         # Rule 1: Check for excessive character repetition (e.g., "heyyyyy", "soooooo")
-        if re.search(r'(.)\1{3,}', text):
+        if re.search(r'(.)\1{3,}', lower_text):
             return True
 
         # Rule 2: Check for very short, common English words that can be misidentified.
-        # This prevents single-word replies like "ok", "lol", "ty" from being translated.
-        lower_text = text.lower()
         if lower_text in ["ok", "lol", "ty", "thanks", "omg", "heh", "okey", "thx", "np"]:
             return True
 
-        # Rule 3: Check for messages that are just a single, non-translatable word.
+        # Rule 3: Check for longer messages made of very few unique characters (catches 'hahahaha', 'lololol')
+        # We ignore spaces in this calculation.
+        unique_chars = set(lower_text.replace(" ", ""))
+        if len(lower_text) > 5 and len(unique_chars) <= 3:
+            return True
+
+        # Rule 4: Check for messages that are just a single, short, vowel-less word (acronyms).
         if len(text.split()) == 1 and not re.search(r'\s', text):
-            # A simple check: if it's short and has no vowels, it's likely an acronym or slang.
             if len(text) < 6 and not any(char in 'aeiouAEIOU' for char in text):
                 return True
 
@@ -373,7 +377,7 @@ class TranslationCog(commands.Cog, name="Translation"):
         if glossary:
             best_match, score = process.extractOne(message.content.lower(), glossary, scorer=fuzz.ratio)
             
-            SIMILARITY_THRESHOLD = 90
+            SIMILARITY_THRESHOLD = 88
             if score >= SIMILARITY_THRESHOLD and score < 100:
                 log.info(f"Found close glossary match for '{message.content}': '{best_match}' (Score: {score}). Creating correction thread.")
                 try:
@@ -524,41 +528,11 @@ class TranslationCog(commands.Cog, name="Translation"):
             translated_embeds = []
             if message.embeds:
                 for embed in message.embeds:
-                    translated_embed = await HubManagerCog._translate_embed(self.translator, embed, target_language)
+                    # Pass glossary to embed translation as well
+                    translated_embed = await HubManagerCog._translate_embed(self.translator, embed, target_language, glossary=glossary)
                     translated_embeds.append(translated_embed)
             if translated_text or translated_embeds:
-                await message.reply(content=translated_text, embeds=translated_embeds, mention_author=False)
-
-    async def translate_message_callback(self, interaction: discord.Interaction, message: discord.Message):
-        await interaction.response.defer(ephemeral=True)
-        if not message.content and not message.embeds:
-            await interaction.followup.send("This message has no text or embeds to translate.")
-            return
-        target_language = await self.db.get_user_preferences(interaction.user.id)
-        if not target_language:
-            await interaction.followup.send("I don't know your preferred language yet! Please use /set_language to set it up.", ephemeral=True)
-            return
-        translated_text = ""
-        if message.content:
-            translation_result = await self.perform_translation(message.content, target_language)
-            if translation_result:
-                translated_text = translation_result.get('translated_text', '')
-        translated_embeds = []
-        if message.embeds:
-            for embed in message.embeds:
-                translated_embed = await HubManagerCog._translate_embed(self.translator, embed, target_language)
-                translated_embeds.append(translated_embed)
-        if translated_text and not translated_embeds:
-            reply_embed = discord.Embed(title="Translation Result", description=translated_text, color=discord.Color.blue())
-            reply_embed.set_footer(text=f"Original message by {message.author.display_name}")
-            await interaction.followup.send(embed=reply_embed)
-        elif translated_embeds:
-            if translated_text:
-                await interaction.followup.send(translated_text, embeds=translated_embeds)
-            else:
-                await interaction.followup.send(embeds=translated_embeds)
-        elif not translated_text and message.content:
-             await interaction.followup.send("An error occurred during translation.", ephemeral=True)
+                await message.reply(content=translated_text or None, embeds=translated_embeds, mention_author=False)
 
 async def setup(bot: commands.Bot):
     if not all(hasattr(bot, attr) for attr in ['db_manager', 'translator', 'usage_manager']):
