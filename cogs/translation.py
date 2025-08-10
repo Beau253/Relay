@@ -342,8 +342,9 @@ class TranslationCog(commands.Cog, name="Translation"):
         before they hit the API. Returns True if the text is likely slang.
         """
         lower_text = text.lower()
-        # Rule 1: Check for excessive character repetition (e.g., "heyyyyy", "soooooo")
-        if re.search(r'(.)\1{3,}', lower_text):
+        # Rule 1: Check for excessive character repetition (e.g., "heyyy", "soooo")
+        # Now catches 3 or more repetitions, covering cases like "UHHH" and "NOOO".
+        if re.search(r'(.)\1{2,}', lower_text):
             return True
 
         # Rule 2: Check for very short, common English words that can be misidentified.
