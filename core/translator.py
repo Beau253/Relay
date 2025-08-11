@@ -103,43 +103,19 @@ class TextTranslator:
         # --- FIXED: Restored the 'loop' variable definition ---
         loop = asyncio.get_running_loop()
 
-        # --- Language Detection (if no source provided) ---
-        detected_language_code = source_language
-        if not detected_language_code:
-            try:
-                response = await loop.run_in_executor(
-                    None,
-                    lambda: self.client.detect_language(
-                        parent=self.parent,
-                        content=text,
-                        mime_type="text/plain",
-                    )
-                )
-                if response.languages:
-                    detected_language_code = response.languages[0].language_code
-                    log.info(f"Language detection: Detected '{detected_language_code}' for text: '{text[:50]}...'")
-                else:
-                    raise ValueError("Detection response was empty.")
-            except Exception as e:
-                log.error(f"Language detection failed: {e}", exc_info=True)
-                return None
-
-        # --- Skip translating if source and target are the same ---
-        if detected_language_code and detected_language_code.split('-')[0] == effective_target_language.split('-')[0]:
-            log.info(f"Skipping translation: Detected source ('{detected_language_code}') and target ('{effective_target_language}') are effectively the same.")
-            # Restore placeholders even if we skip translation to return the original text correctly
-            if placeholders:
-                for placeholder, original_word in placeholders.items():
-                    text = text.replace(placeholder, original_word)
-            return {"translated_text": text, "detected_language_code": detected_language_code}
-
+        # --- API Call Preparation ---
         api_params = {
             "parent": self.parent,
             "contents": [text],
             "target_language_code": effective_target_language,
-            "source_language_code": detected_language_code,
             "mime_type": "text/plain",
         }
+
+        # Only provide the source language if we have a confident hint (e.g., from a flag reaction).
+        # Otherwise, let the Google API perform detection itself for higher accuracy.
+        if source_language:
+            api_params["source_language_code"] = source_language
+        
         log.info(f"Calling Google Translate API with params: {api_params}")
 
         try:
@@ -148,8 +124,23 @@ class TextTranslator:
                 lambda: self.client.translate_text(**api_params)
             )
 
-            if response and response.translations:
-                translated_text = response.translations[0].translated_text
+            if not response or not response.translations:
+                log.warning(f"Translation to '{effective_target_language}' succeeded but API returned no translations.")
+                return None
+
+            translation = response.translations[0]
+            translated_text = translation.translated_text
+            detected_language_code = translation.detected_language_code
+
+            # --- Post-Translation Checks ---
+            # Now we check if the detected language matches the target.
+            if detected_language_code and detected_language_code.split('-')[0] == effective_target_language.split('-')[0]:
+                log.info(f"Skipping translation: Google detected source ('{detected_language_code}') matches target ('{effective_target_language}').")
+                # Restore placeholders to return the original text.
+                if placeholders:
+                    for placeholder, original_word in placeholders.items():
+                        text = text.replace(placeholder, original_word)
+                return {"translated_text": text, "detected_language_code": detected_language_code}
                 
                 if placeholders:
                     for placeholder, original_word in placeholders.items():

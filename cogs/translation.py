@@ -341,27 +341,28 @@ class TranslationCog(commands.Cog, name="Translation"):
         A heuristic pre-filter to catch exaggerated English or short, common phrases
         before they hit the API. Returns True if the text is likely slang.
         """
-        lower_text = text.lower()
+        lower_text = text.lower().strip()
+        
+        # Whitelist of common short words that should NOT be considered slang.
+        common_short_words = {"a", "i", "an", "as", "at", "be", "by", "do", "go", "he", "if", "in", "is", "it", "me", "my", "no", "of", "on", "or", "so", "to", "up", "us", "we", "am", "are", "and", "but", "can", "did", "for", "get", "has", "had", "him", "her", "how", "let", "not", "out", "say", "see", "she", "the", "try", "use", "was", "way", "who", "why", "you", "all", "any", "boy", "car", "day", "eat", "fly", "guy", "hey", "his", "its", "leg", "man", "new", "one", "our", "run", "sit", "ten", "too", "two", "war", "yet"}
+
         # Rule 1: Check for excessive character repetition (e.g., "heyyy", "soooo")
-        # Now catches 3 or more repetitions, covering cases like "UHHH" and "NOOO".
         if re.search(r'(.)\1{2,}', lower_text):
             return True
 
-        # Rule 2: Check for very short, common English words that can be misidentified.
-        if lower_text in ["ok", "lol", "ty", "thanks", "omg", "heh", "okey", "thx", "np"]:
+        # Rule 2: Check for very short, common chat slang.
+        if lower_text in ["ok", "lol", "ty", "thanks", "omg", "heh", "okey", "thx", "np", "gg", "gn", "gm"]:
             return True
 
         # Rule 3: Check for longer messages made of very few unique characters (catches 'hahahaha', 'lololol')
-        # We ignore spaces in this calculation.
         unique_chars = set(lower_text.replace(" ", ""))
         if len(lower_text) > 5 and len(unique_chars) <= 3:
             return True
 
-        # Rule 4: Check for messages that are just a single, short, vowel-less word (acronyms).
-        if len(text.split()) == 1 and not re.search(r'\s', text):
-            if len(text) < 6 and not any(char in 'aeiouAEIOU' for char in text):
-                return True
-
+        # Rule 4: Check for single, short words that are NOT common English words (catches 'NOI', 'brb', etc.)
+        if " " not in lower_text and len(lower_text) <= 3 and lower_text not in common_short_words:
+            return True
+            
         return False
 
     @commands.Cog.listener()
@@ -438,18 +439,28 @@ class TranslationCog(commands.Cog, name="Translation"):
         target_lang = config['target_language_code']
         detected_lang = None
 
-        # --- Pre-filter to save API calls ---
         try:
-            detected_lang = detect(message.content)
-            if detected_lang.split('-')[0] == target_lang.split('-')[0]:
+            # Use detect_langs to get a list of possibilities
+            detected_langs = detect_langs(message.content)
+            best_guess = None
+            for lang in detected_langs:
+                # Find the first detected language that is actually supported by the bot
+                if lang.lang in SUPPORTED_LANGUAGES:
+                    best_guess = lang.lang
+                    break
+            
+            # If our best guess matches the target, we can safely skip translation.
+            if best_guess and best_guess.split('-')[0] == target_lang.split('-')[0]:
                 return
         except LangDetectException:
+            # If detection fails, just proceed and let Google handle it.
             pass
 
         # --- Glossary Integration ---
-        glossary = await self.db.get_glossary_terms(message.guild.id)
+        # The glossary is already fetched from the fuzzy match step above.
         
-        translation_result = await self.perform_translation(message.content, target_lang, glossary=glossary)
+        # We pass source_lang=None to force the API to do its own detection.
+        translation_result = await self.perform_translation(message.content, target_lang, glossary=glossary, source_lang=None)
         if not translation_result: return
 
         translated_text = translation_result.get('translated_text')
@@ -502,16 +513,26 @@ class TranslationCog(commands.Cog, name="Translation"):
         if not message.content and not message.embeds:
             return
 
-        # --- OFFLINE PRE-FILTER RESTORED ---
-        detected_lang = None
+        # --- OFFLINE PRE-FILTER RESTORED AND IMPROVED ---
+        detected_lang_hint = None
         if message.content:
             try:
-                detected_lang = detect(message.content)
-                if detected_lang.split('-')[0] == target_language.split('-')[0]:
-                    log.info(f"Flag reaction skipped: Local pre-filter detected '{detected_lang}', matching target '{target_language}'. No API call.")
+                detected_langs = detect_langs(message.content)
+                best_guess = None
+                for lang in detected_langs:
+                    if lang.lang in SUPPORTED_LANGUAGES:
+                        best_guess = lang.lang
+                        break
+                
+                if best_guess and best_guess.split('-')[0] == target_language.split('-')[0]:
+                    log.info(f"Flag reaction skipped: Offline pre-filter detected '{best_guess}', matching target '{target_language}'. No API call made.")
                     return
+                
+                # Use our best guess as a *hint* for the API call.
+                detected_lang_hint = best_guess
+
             except LangDetectException:
-                log.warning("Local detection failed for flag reaction, falling back to Google API.")
+                log.warning("Offline language detection failed for flag reaction; letting Google API decide.")
                 pass
         # --- END OF PRE-FILTER ---
 
