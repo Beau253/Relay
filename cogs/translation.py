@@ -7,7 +7,7 @@ import random
 from discord.ext import commands
 from discord import app_commands
 from cogs.hub_manager import HubManagerCog
-from langdetect import detect, LangDetectException
+from langdetect import detect, detect_langs, LangDetectException
 from typing import Optional, List
 from thefuzz import process, fuzz # For fuzzy string matching
 
