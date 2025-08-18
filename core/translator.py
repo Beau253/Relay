@@ -100,7 +100,6 @@ class TextTranslator:
         # --- Language Code Mapping & Debugging ---
         effective_target_language = 'zh' if target_language == 'zh-TW' else target_language
         
-        # --- FIXED: Restored the 'loop' variable definition ---
         loop = asyncio.get_running_loop()
 
         # --- API Call Preparation ---
@@ -125,7 +124,7 @@ class TextTranslator:
             )
 
             if not response or not response.translations:
-                log.warning(f"Translation to '{effective_target_language}' succeeded but API returned no translations.")
+                log.warning(f"Translation API call to '{effective_target_language}' succeeded but returned no translations.")
                 return None
 
             translation = response.translations[0]
@@ -133,28 +132,25 @@ class TextTranslator:
             detected_language_code = translation.detected_language_code
 
             # --- Post-Translation Checks ---
-            # Now we check if the detected language matches the target.
+            # Check if the detected source language is the same as the target language.
             if detected_language_code and detected_language_code.split('-')[0] == effective_target_language.split('-')[0]:
                 log.info(f"Skipping translation: Google detected source ('{detected_language_code}') matches target ('{effective_target_language}').")
-                # Restore placeholders to return the original text.
+                # Restore placeholders to return the original text if needed.
                 if placeholders:
                     for placeholder, original_word in placeholders.items():
                         text = text.replace(placeholder, original_word)
                 return {"translated_text": text, "detected_language_code": detected_language_code}
-                
-                if placeholders:
-                    for placeholder, original_word in placeholders.items():
-                        translated_text = translated_text.replace(placeholder, original_word)
+            
+            # If we reached here, a translation occurred.
+            # Restore placeholders in the *translated* text.
+            if placeholders:
+                for placeholder, original_word in placeholders.items():
+                    translated_text = translated_text.replace(placeholder, original_word)
 
-                log.info(f"Translation successful. Result: '{translated_text[:50]}...'")
-                return {"translated_text": translated_text, "detected_language_code": detected_language_code}
-            else:
-                log.warning(f"Translation to '{effective_target_language}' succeeded but API returned no translations.")
-                return None
+            log.info(f"Translation successful. Result: '{translated_text[:50]}...'")
+            return {"translated_text": translated_text, "detected_language_code": detected_language_code}
 
         except Exception as e:
-            # --- FIXED: Made the error log more robust ---
-            # Use target_language as a fallback in case the error happens before effective_target_language is set.
             lang_for_log = locals().get('effective_target_language', target_language)
             log.error(f"An error occurred during translation to '{lang_for_log}': {e}", exc_info=True)
             return None
