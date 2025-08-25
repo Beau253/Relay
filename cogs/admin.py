@@ -441,6 +441,79 @@ class AdminCog(commands.Cog, name="Admin"):
             embed.color = discord.Color.red()
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
+    # --- Glossary/Dictionary Command Group ---
+    dictionary = app_commands.Group(name="dictionary", description="Manage the server's 'do-not-translate' dictionary.")
+
+    @dictionary.command(name="add", description="Manually add a term to the dictionary.")
+    @app_commands.describe(term="The word or phrase to protect from translation (case-insensitive).")
+    async def dictionary_add(self, interaction: discord.Interaction, term: str):
+        if not interaction.guild_id: return
+        
+        await self.db.add_glossary_term(interaction.guild_id, term)
+        await interaction.response.send_message(f"✅ The term `{term}` has been added to the dictionary.", ephemeral=True)
+
+    @dictionary.command(name="remove", description="Remove a term from the dictionary.")
+    @app_commands.describe(term="The term to remove.")
+    async def dictionary_remove(self, interaction: discord.Interaction, term: str):
+        if not interaction.guild_id: return
+        
+        await self.db.remove_glossary_term(interaction.guild_id, term)
+        await interaction.response.send_message(f"✅ The term `{term}` has been removed from the dictionary.", ephemeral=True)
+
+    @dictionary.command(name="list", description="Lists all terms in the server's dictionary.")
+    async def dictionary_list(self, interaction: discord.Interaction):
+        if not interaction.guild_id: return
+        await interaction.response.defer(ephemeral=True)
+        
+        terms = await self.db.get_glossary_terms(interaction.guild_id)
+        if not terms:
+            await interaction.followup.send("The dictionary for this server is currently empty.", ephemeral=True)
+            return
+
+        description = "\n".join(f"- `{term}`" for term in sorted(terms))
+        
+        embed = discord.Embed(
+            title=f"Server Dictionary ({len(terms)} terms)",
+            description=description,
+            color=discord.Color.blue()
+        )
+        await interaction.followup.send(embed=embed)
+
+    @dictionary.command(name="import", description="Import a pre-defined list of terms into the dictionary.")
+    @app_commands.describe(pack="The name of the term pack to import.")
+    @app_commands.choices(pack=[
+        app_commands.Choice(name="General Slang", value="general_slang"),
+    ])
+    async def dictionary_import(self, interaction: discord.Interaction, pack: app_commands.Choice[str]):
+        if not interaction.guild_id: return
+        await interaction.response.defer(ephemeral=True, thinking=True)
+
+        pack_name = pack.value
+        file_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'packs', f'{pack_name}.json')
+
+        if not os.path.exists(file_path):
+            await interaction.followup.send(f"Error: The data pack '{pack_name}' could not be found.", ephemeral=True)
+            return
+            
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                terms_to_import = json.load(f)
+            
+            if not isinstance(terms_to_import, list):
+                await interaction.followup.send("Error: The data pack is not in the correct format (a list of strings).", ephemeral=True)
+                return
+
+            for term in terms_to_import:
+                await self.db.add_glossary_term(interaction.guild_id, term)
+            
+            await interaction.followup.send(f"✅ Successfully imported the **{pack.name}** pack, adding up to **{len(terms_to_import)}** new terms to the dictionary.", ephemeral=True)
+
+        except json.JSONDecodeError:
+            await interaction.followup.send("Error: Failed to decode the data pack. It may be a corrupted JSON file.", ephemeral=True)
+        except Exception as e:
+            log.error(f"Error during dictionary import for guild {interaction.guild_id}: {e}", exc_info=True)
+            await interaction.followup.send("An unexpected error occurred during the import process.", ephemeral=True)
+
 
 async def setup(bot: commands.Bot):
     """The setup function for the cog."""

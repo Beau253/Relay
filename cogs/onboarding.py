@@ -91,7 +91,13 @@ class OnboardingCog(commands.Cog, name="Onboarding"):
         if not guild_config or not guild_config.get('onboarding_channel_id'):
             log.info(f"No onboarding channel configured for guild {member.guild.id}. Skipping role assignment.")
             return
-        
+            
+        # --- NEW: Check for existing language preference across all servers ---
+        existing_preference = await self.db.get_user_preferences(member.id)
+        if existing_preference:
+            log.info(f"Member {member.id} joined with a pre-existing language preference ('{existing_preference}'). Skipping role assignment.")
+            return # User is already set up, so we're done.
+
         onboarding_channel = self.bot.get_channel(guild_config['onboarding_channel_id'])
         if not onboarding_channel: return
             
