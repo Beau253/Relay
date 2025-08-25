@@ -3,6 +3,7 @@
 import os
 import discord
 import logging
+import json # ADD THIS LINE
 import asyncio
 from discord.ext import commands, tasks
 from discord import app_commands
