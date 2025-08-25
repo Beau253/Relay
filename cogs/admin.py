@@ -484,6 +484,7 @@ class AdminCog(commands.Cog, name="Admin"):
     @app_commands.describe(pack="The name of the term pack to import.")
     @app_commands.choices(pack=[
         app_commands.Choice(name="General Slang", value="general_slang"),
+        app_commands.Choice(name="Urban Dictionary Top 500", value="urban_slang"),
     ])
     async def dictionary_import(self, interaction: discord.Interaction, pack: app_commands.Choice[str]):
         if not interaction.guild_id: return
