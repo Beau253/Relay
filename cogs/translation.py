@@ -692,10 +692,23 @@ class TranslationCog(commands.Cog, name="Translation"):
         self.emoji_to_language_map: dict[str, str] = {}
         self.pirate_dict: dict[str, str] = {}
         self.webhook_cache: dict[int, discord.Webhook] = {}
-        # Use the more reliable 'lingua' library for language detection
-        self.detector = LanguageDetectorBuilder.from_languages(
-            *[Language[lang.upper().replace("-", "_")] for lang in SUPPORTED_LANGUAGES]
-        ).with_preloaded_language_models().build()
+        # --- CORRECTED INITIALIZATION ---
+        # Build a list of IsoCode639_1 enums from the codes in SUPPORTED_LANGUAGES
+        iso_codes_to_load = []
+        for code in SUPPORTED_LANGUAGES:
+            # Take the base of codes like 'en-US' or 'pt-BR' to get the two-letter ISO 639-1 code.
+            base_code_str = code.split('-')[0].upper()
+            try:
+                # Convert the string code (e.g., "EN") into an IsoCode639_1 enum member
+                iso_code = IsoCode639_1[base_code_str]
+                if iso_code not in iso_codes_to_load:
+                    iso_codes_to_load.append(iso_code)
+            except KeyError:
+                log.warning(f"Could not find a corresponding ISO 639-1 code for '{code}' in lingua library. Skipping.")
+
+        # Use the correct method to build the detector from the list of ISO codes
+        self.detector = LanguageDetectorBuilder.from_iso_codes_639_1(*iso_codes_to_load).with_preloaded_language_models().build()
+        # --- END OF CORRECTION ---
         
         self._load_flag_data()
         self._load_pirate_data()
