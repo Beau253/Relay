@@ -162,7 +162,7 @@ class TranslationCog(commands.Cog, name="Translation"):
                 iso_code = getattr(IsoCode639_1, base_code_str)
                 if iso_code not in iso_codes_to_load:
                     iso_codes_to_load.append(iso_code)
-            except KeyError:
+            except AttributeError:
                 log.warning(f"Could not find a corresponding ISO 639-1 code for '{code}' in lingua library. Skipping.")
 
         # Use the correct method to build the detector from the list of ISO codes
@@ -703,7 +703,7 @@ class TranslationCog(commands.Cog, name="Translation"):
                 iso_code = getattr(IsoCode639_1, base_code_str)
                 if iso_code not in iso_codes_to_load:
                     iso_codes_to_load.append(iso_code)
-            except KeyError:
+            except AttributeError:
                 log.warning(f"Could not find a corresponding ISO 639-1 code for '{code}' in lingua library. Skipping.")
 
         # Use the correct method to build the detector from the list of ISO codes
