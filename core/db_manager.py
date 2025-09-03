@@ -70,6 +70,12 @@ TABLE_CREATION_SQL = {
             term TEXT,
             PRIMARY KEY (guild_id, term)
         );
+    """,
+    'slang_detection_settings': """
+        CREATE TABLE IF NOT EXISTS slang_detection_settings (
+            guild_id BIGINT PRIMARY KEY,
+            enabled BOOLEAN DEFAULT TRUE
+        );
     """
 }
 
@@ -484,3 +490,25 @@ class DatabaseManager:
         except Exception as e:
             log.error(f"Error fetching glossary terms for guild {guild_id}: {e}")
             return []
+
+    # --- Slang Detection Methods ---
+    async def set_slang_detection(self, guild_id: int, enabled: bool):
+        """Sets the slang detection setting for a guild."""
+        if not self.pool: return
+        try:
+            async with self.pool.acquire() as conn:
+                query = "INSERT INTO slang_detection_settings (guild_id, enabled) VALUES ($1, $2) ON CONFLICT (guild_id) DO UPDATE SET enabled = EXCLUDED.enabled;"
+                await conn.execute(query, guild_id, enabled)
+        except Exception as e:
+            log.error(f"Error setting slang detection for guild {guild_id}: {e}")
+
+    async def get_slang_detection(self, guild_id: int) -> bool:
+        """Gets the slang detection setting for a guild."""
+        if not self.pool: return True # Default to True if not set
+        try:
+            async with self.pool.acquire() as conn:
+                record = await conn.fetchrow("SELECT enabled FROM slang_detection_settings WHERE guild_id = $1;", guild_id)
+                return record['enabled'] if record else True
+        except Exception as e:
+            log.error(f"Error fetching slang detection for guild {guild_id}: {e}")
+            return True

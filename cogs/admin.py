@@ -516,6 +516,17 @@ class AdminCog(commands.Cog, name="Admin"):
             log.error(f"Error during dictionary import for guild {interaction.guild_id}: {e}", exc_info=True)
             await interaction.followup.send("An unexpected error occurred during the import process.", ephemeral=True)
 
+    @app_commands.command(name="toggle_slang_detection", description="Enable or disable slang detection for the server.")
+    @app_commands.describe(enabled="Whether to enable or disable slang detection.")
+    async def toggle_slang_detection(self, interaction: discord.Interaction, enabled: bool):
+        if not interaction.guild_id:
+            await interaction.response.send_message("This command can only be used in a server.", ephemeral=True)
+            return
+
+        await self.db.set_slang_detection(interaction.guild_id, enabled)
+        status = "enabled" if enabled else "disabled"
+        await interaction.response.send_message(f"Slang detection has been **{status}** for this server.", ephemeral=True)
+
 
 async def setup(bot: commands.Bot):
     """The setup function for the cog."""

@@ -395,11 +395,13 @@ class TranslationCog(commands.Cog, name="Translation"):
     async def on_message(self, message: discord.Message):
         if message.author.bot or message.webhook_id or not message.guild or not isinstance(message.channel, discord.TextChannel) or not message.content:
             return
-            
-        is_slang = self._is_likely_english_slang(message.content)
-        if is_slang:
-            log.info(f"Auto-translate skipped: Heuristic pre-filter identified message '{message.content}' as likely slang.")
-            return
+        
+        slang_detection_enabled = await self.db.get_slang_detection(message.guild.id)
+        if slang_detection_enabled:
+            is_slang = self._is_likely_english_slang(message.content)
+            if is_slang:
+                log.info(f"Auto-translate skipped: Heuristic pre-filter identified message '{message.content}' as likely slang.")
+                return
 
         # --- Fuzzy Matching for Auto-Correction Suggestions ---
         glossary = await self.db.get_glossary_terms(message.guild.id)
