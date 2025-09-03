@@ -159,7 +159,7 @@ class TranslationCog(commands.Cog, name="Translation"):
             base_code_str = code.split('-')[0].upper()
             try:
                 # Convert the string code (e.g., "EN") into an IsoCode639_1 enum member
-                iso_code = IsoCode639_1[base_code_str]
+                iso_code = getattr(IsoCode639_1, base_code_str)
                 if iso_code not in iso_codes_to_load:
                     iso_codes_to_load.append(iso_code)
             except KeyError:
@@ -700,7 +700,7 @@ class TranslationCog(commands.Cog, name="Translation"):
             base_code_str = code.split('-')[0].upper()
             try:
                 # Convert the string code (e.g., "EN") into an IsoCode639_1 enum member
-                iso_code = IsoCode639_1[base_code_str]
+                iso_code = getattr(IsoCode639_1, base_code_str)
                 if iso_code not in iso_codes_to_load:
                     iso_codes_to_load.append(iso_code)
             except KeyError:
