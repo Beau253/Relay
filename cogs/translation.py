@@ -12,7 +12,542 @@ from typing import Optional, List
 from thefuzz import process, fuzz # For fuzzy string matching
 
 # Import our core services and utilities
+import discord
+import logging
+import os
+import json
+import re
+import random
+from discord.ext import commands
+from discord import app_commands
+from cogs.hub_manager import HubManagerCog
+from lingua import LanguageDetectorBuilder, Language
+from typing import Optional, List
+from thefuzz import process, fuzz # For fuzzy string matching
+
+# Import our core services and utilities
 from core import DatabaseManager, TextTranslator, UsageManager, language_autocomplete, SUPPORTED_LANGUAGES
+from core.utils import country_code_to_flag
+
+log = logging.getLogger(__name__)
+
+# This dictionary is ESSENTIAL for flags that cannot be generated from a simple two-letter code.
+SPECIAL_CASE_FLAGS = {
+    "GB-ENG": "🏴󠁧󠁢󠁥󠁮󠁧󠁿",
+    "GB-SCT": "🏴󠁧󠁢󠁳󠁣󠁴󠁿",
+    "GB-WLS": "🏴󠁧󠁢󠁷󠁬󠁳󠁿",
+    "EU": "🇪🇺",
+    "UN": "🇺🇳"
+}
+
+class GlossaryEntryModal(discord.ui.Modal, title='Add to Dictionary'):
+    term_input = discord.ui.TextInput(
+        label='Term to protect from translation',
+        style=discord.TextStyle.short,
+        placeholder='e.g., Shinny, a special project name, etc.',
+        required=True,
+        max_length=100
+    )
+
+    def __init__(self, db: DatabaseManager, thread_to_delete: Optional[discord.Thread] = None):
+        super().__init__()
+        self.db = db
+        self.thread_to_delete = thread_to_delete
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        term = self.term_input.value.strip()
+        if not term:
+            await interaction.followup.send("The term cannot be empty.", ephemeral=True)
+            return
+        
+        if not interaction.guild_id:
+            await interaction.followup.send("This command can only be used in a server.", ephemeral=True)
+            return
+
+        await self.db.add_glossary_term(interaction.guild_id, term)
+        log.info(f"User {interaction.user.id} added term '{term}' to glossary for guild {interaction.guild_id}.")
+        await interaction.followup.send(f"✅ The term `{term}` has been added to the server's dictionary.", ephemeral=True)
+
+        # If a thread was passed to the modal, it means it came from the correction UI.
+        # Delete the thread after the action is complete.
+        if self.thread_to_delete:
+            try:
+                log.info(f"Deleting correction thread {self.thread_to_delete.id} after dictionary add.")
+                await self.thread_to_delete.delete()
+            except discord.HTTPException as e:
+                log.error(f"Failed to delete correction thread {self.thread_to_delete.id}: {e}")
+
+class CorrectionView(discord.ui.View):
+    """A view with buttons to handle a potential auto-correction within a private thread."""
+    def __init__(self, cog: "TranslationCog", original_message: discord.Message, suggested_term: str):
+        # Timeout is 5 minutes
+        super().__init__(timeout=300) 
+        self.cog = cog
+        self.original_message = original_message
+        self.suggested_term = suggested_term
+        self.original_author_id = original_message.author.id
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        """Ensures only the original message author can use the buttons."""
+        if interaction.user.id != self.original_author_id:
+            await interaction.response.send_message("You are not the author of this message.", ephemeral=True)
+            return False
+        return True
+
+    async def on_timeout(self):
+        """When the view times out, delete the private thread."""
+        # The view's message is the bot's interactive prompt. Its channel is the thread.
+        if self.message and isinstance(self.message.channel, discord.Thread):
+            try:
+                log.info(f"Correction thread {self.message.channel.id} timed out. Deleting.")
+                await self.message.channel.delete()
+            except discord.NotFound:
+                pass # Thread already deleted, which is fine.
+
+    @discord.ui.button(label="Ignore", style=discord.ButtonStyle.secondary)
+    async def ignore_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Deletes the private thread. The original message remains."""
+        await interaction.response.defer()
+        if isinstance(interaction.channel, discord.Thread):
+            try:
+                log.info(f"User ignored correction. Deleting thread {interaction.channel.id}.")
+                await interaction.channel.delete()
+            except discord.HTTPException as e:
+                log.error(f"Failed to delete thread {interaction.channel.id} on 'Ignore': {e}")
+
+    @discord.ui.button(label="Send", style=discord.ButtonStyle.success)
+    async def send_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Sends the corrected message, deletes the original, and deletes the thread."""
+        await interaction.response.defer()
+        try:
+            await self.cog._send_corrected_message(self.original_message, self.suggested_term)
+            await self.original_message.delete()
+            if isinstance(interaction.channel, discord.Thread):
+                await interaction.channel.delete()
+        except discord.Forbidden:
+            log.error(f"Missing permissions to manage messages/webhooks for correction 'Send' action.")
+            if interaction.channel:
+                 await interaction.followup.send("I lack permissions to send the message or delete the original.", ephemeral=False)
+        except Exception as e:
+            log.error(f"Error during correction 'Send' action: {e}", exc_info=True)
+    
+    @discord.ui.button(label="Add to Dictionary", style=discord.ButtonStyle.primary)
+    async def add_to_dictionary_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Presents a modal to add the user's *original* term to the dictionary."""
+        thread = interaction.channel if isinstance(interaction.channel, discord.Thread) else None
+        
+        modal = GlossaryEntryModal(self.cog.db, thread_to_delete=thread)
+        modal.term_input.default = self.original_message.content.strip()
+        await interaction.response.send_modal(modal)
+
+
+@app_commands.guild_only()
+class TranslationCog(commands.Cog, name="Translation"):
+    def __init__(self, bot: commands.Bot, db_manager: DatabaseManager, translator: TextTranslator, usage_manager: UsageManager):
+        self.bot = bot
+        self.db = db_manager
+        self.translator = translator
+        self.usage = usage_manager
+        self.emoji_to_language_map: dict[str, str] = {}
+        self.pirate_dict: dict[str, str] = {}
+        self.webhook_cache: dict[int, discord.Webhook] = {}
+        self.detector = LanguageDetectorBuilder.from_languages(*[Language[lang.upper().replace("-", "_")] for lang in SUPPORTED_LANGUAGES]).with_preloaded_language_models().build()
+        self._load_flag_data()
+        self._load_pirate_data()
+
+        log.info("[TRANSLATION_COG] Initializing and adding context menus...")
+        self.translate_message_menu = app_commands.ContextMenu(
+            name='Translate Message',
+            callback=self.translate_message_callback,
+        )
+        self.add_to_dictionary_menu = app_commands.ContextMenu(
+            name='Add to Dictionary',
+            callback=self.add_to_dictionary_callback,
+        )
+        self.report_translation_menu = app_commands.ContextMenu(
+            name='Report Translation',
+            callback=self.report_translation_callback,
+        )
+        self.bot.tree.add_command(self.translate_message_menu)
+        self.bot.tree.add_command(self.add_to_dictionary_menu)
+        self.bot.tree.add_command(self.report_translation_menu)
+        log.info("[TRANSLATION_COG] Context menus added to tree.")
+
+    def _load_flag_data(self):
+        try:
+            script_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            file_path = os.path.join(script_dir, 'data', 'flags.json')
+            with open(file_path, 'r', encoding='utf-8') as f:
+                flag_data = json.load(f)
+
+            for _, data in flag_data.items():
+                country_code = data.get("countryCode")
+                languages = data.get("languages")
+                if country_code and languages:
+                    emoji = SPECIAL_CASE_FLAGS.get(country_code) or country_code_to_flag(country_code)
+                    if emoji and (emoji != '🏳️' or country_code in SPECIAL_CASE_FLAGS):
+                         self.emoji_to_language_map[emoji] = languages[0]
+            log.info(f"Successfully loaded {len(self.emoji_to_language_map)} emoji-to-language mappings.")
+        except FileNotFoundError:
+            log.error("Could not find data/flags.json. Flag reaction translations will not work.")
+        except json.JSONDecodeError as e:
+            log.critical(f"FATAL: flags.json has a syntax error: {e}. Flag reactions will not work.")
+        except Exception as e:
+            log.error(f"Error loading flags.json: {e}", exc_info=True)
+            
+    def _load_pirate_data(self):
+        try:
+            script_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            file_path = os.path.join(script_dir, 'data', 'pirate_speak.json')
+            with open(file_path, 'r', encoding='utf-8') as f:
+                self.pirate_dict = json.load(f)
+            log.info(f"Successfully loaded {len(self.pirate_dict)} pirate speak phrases.")
+        except FileNotFoundError:
+            log.warning("Could not find data/pirate_speak.json. Pirate translations will be disabled.")
+        except json.JSONDecodeError as e:
+            log.error(f"FATAL: pirate_speak.json has a syntax error: {e}. Pirate translations will be disabled.")
+        except Exception as e:
+            log.error(f"Error loading pirate_speak.json: {e}", exc_info=True)
+
+    def _translate_to_pirate_speak(self, text: str) -> str:
+        if not self.pirate_dict:
+            return "Arr, me dictionary be lost at sea!"
+        sorted_phrases = sorted(self.pirate_dict.keys(), key=len, reverse=True)
+        for phrase in sorted_phrases:
+            text = re.sub(r'\b' + re.escape(phrase) + r'\b', self.pirate_dict[phrase], text, flags=re.IGNORECASE)
+        exclamations = ["Arrr!", "Shiver me timbers!", "Yo ho ho!", "Blimey!"]
+        return f"{text} {random.choice(exclamations)}"
+
+    def cog_unload(self):
+        self.bot.tree.remove_command(self.translate_message_menu.name, type=self.translate_message_menu.type)
+        self.bot.tree.remove_command(self.add_to_dictionary_menu.name, type=self.add_to_dictionary_menu.type)
+
+    async def perform_translation(self, original_message_content: str, target_lang: str, glossary: Optional[List[str]] = None, source_lang: Optional[str] = None):
+        if not self.translator.is_initialized:
+            return {"translated_text": "Translation service is currently unavailable.", "detected_language_code": "error"}
+        
+        # --- FIXED: Added a pre-check to ignore messages that are full glossary terms ---
+        # Glossary terms are stored in lowercase, so we match against the lowercased, stripped message.
+        if glossary and original_message_content.strip().lower() in glossary:
+            log.info(f"Auto-translate skipped: Message content '{original_message_content}' is a protected glossary term. No API call made.")
+            # Return a result that mimics a translation of identical text.
+            # This ensures the `on_message` listener will correctly ignore it.
+            return {"translated_text": original_message_content, "detected_language_code": source_lang or "glossary"}
+
+        if self.usage.check_limit_exceeded(len(original_message_content)):
+            return {"translated_text": "The monthly translation limit has been reached.", "detected_language_code": "error"}
+
+        # --- FINAL SANITIZATION ---
+        lang_code_match = re.search(r'\b([a-z]{2}(?:-[A-Z]{2})?)\b', target_lang)
+        sanitized_lang = lang_code_match.group(1) if lang_code_match else target_lang
+        # --- END SANITIZATION ---
+
+        # Pass the pre-detected source_lang to the core translator to avoid a redundant API call
+        translation_result = await self.translator.translate_text(original_message_content, sanitized_lang, glossary=glossary, source_language=source_lang)
+        if translation_result and translation_result.get('translated_text') and translation_result.get("detected_language_code") != "error":
+            # Only record usage if an actual translation occurred (source != target)
+            if translation_result.get('translated_text') != original_message_content:
+                await self.usage.record_usage(len(original_message_content))
+        return translation_result
+
+    async def translate_message_callback(self, interaction: discord.Interaction, message: discord.Message):
+        """The actual logic for the 'Translate Message' context menu."""
+        await interaction.response.defer(ephemeral=True)
+        if not message.content and not message.embeds:
+            await interaction.followup.send("This message has no text or embeds to translate.")
+            return
+        target_language = await self.db.get_user_preferences(interaction.user.id)
+        if not target_language:
+            await interaction.followup.send("I don't know your preferred language yet! Use /set_language to set it up.", ephemeral=True)
+            return
+        
+        glossary = await self.db.get_glossary_terms(interaction.guild_id) if interaction.guild_id else []
+        
+        translated_text = ""
+        if message.content:
+            translation_result = await self.perform_translation(message.content, target_language, glossary=glossary)
+            if translation_result:
+                translated_text = translation_result.get('translated_text', '')
+        
+        translated_embeds = []
+        if message.embeds:
+            for embed in message.embeds:
+                translated_embed = await HubManagerCog._translate_embed(self.translator, embed, target_language, glossary=glossary)
+                translated_embeds.append(translated_embed)
+        
+        if translated_text and not translated_embeds:
+            reply_embed = discord.Embed(title="Translation Result", description=translated_text, color=discord.Color.blue())
+            reply_embed.set_footer(text=f"Original message by {message.author.display_name}")
+            await interaction.followup.send(embed=reply_embed)
+        elif translated_embeds:
+            await interaction.followup.send(translated_text or None, embeds=translated_embeds)
+        elif not translated_text and message.content:
+             await interaction.followup.send("An error occurred during translation.", ephemeral=True)
+
+    async def add_to_dictionary_callback(self, interaction: discord.Interaction, message: discord.Message):
+        """The logic for the 'Add to Dictionary' context menu."""
+        modal = GlossaryEntryModal(self.db, thread_to_delete=None)
+        if message.content:
+            modal.term_input.default = message.content
+        await interaction.response.send_modal(modal)
+
+    async def report_translation_callback(self, interaction: discord.Interaction, message: discord.Message):
+        """The logic for the 'Report Translation' context menu."""
+        # For now, just acknowledge the report.
+        # In the future, this could log the message ID, content, and user who reported it to a database.
+        await interaction.response.send_message("Thank you for your feedback. The translation has been reported for review.", ephemeral=True)
+
+    async def _get_webhook(self, channel: discord.TextChannel) -> Optional[discord.Webhook]:
+        if channel.id in self.webhook_cache:
+            return self.webhook_cache[channel.id]
+        try:
+            webhooks = await channel.webhooks()
+            webhook = discord.utils.get(webhooks, name="Relay Translator")
+            if webhook is None:
+                webhook = await channel.create_webhook(name="Relay Translator")
+            self.webhook_cache[channel.id] = webhook
+            return webhook
+        except discord.Forbidden:
+            log.error(f"Missing 'Manage Webhooks' permission in #{channel.name} for impersonation.")
+            return None
+        except Exception as e:
+            log.error(f"Failed to get/create webhook for #{channel.name}: {e}", exc_info=True)
+            return None
+    
+    async def _send_corrected_message(self, original_message: discord.Message, corrected_text: str):
+        """Uses a webhook to send the corrected text, impersonating the original author."""
+        webhook = await self._get_webhook(original_message.channel)
+        if not webhook:
+            await original_message.channel.send(f"{original_message.author.mention} (corrected): {corrected_text}")
+            return
+        try:
+            await webhook.send(
+                content=corrected_text,
+                username=original_message.author.display_name,
+                avatar_url=original_message.author.display_avatar.url,
+                allowed_mentions=discord.AllowedMentions.none()
+            )
+        except (discord.Forbidden, discord.NotFound):
+             await original_message.channel.send(f"{original_message.author.mention} (corrected): {corrected_text}")
+
+    async def _send_webhook_as_reply(self, message: discord.Message, content: str):
+        webhook = await self._get_webhook(message.channel)
+        if not webhook:
+            await message.reply(content, mention_author=False) # Fallback to normal reply
+            return
+        try:
+            # NOTE: Webhooks cannot create direct "replies". This will send a new message
+            # into the channel, impersonating the user. The `delete_original` flag becomes
+            # important for this workflow to feel clean.
+            await webhook.send(
+                content=content,
+                username=message.author.display_name,
+                avatar_url=message.author.display_avatar.url,
+                allowed_mentions=discord.AllowedMentions.none()
+            )
+        except (discord.Forbidden, discord.NotFound):
+            await message.reply(content, mention_author=False) # Fallback
+    
+    @app_commands.command(name="set_language", description="Set your preferred language for translations.")
+    @app_commands.autocomplete(language=language_autocomplete)
+    @app_commands.describe(language="The language you want messages to be translated into for you.")
+    async def set_language(self, interaction: discord.Interaction, language: str):
+        if language not in SUPPORTED_LANGUAGES:
+            await interaction.response.send_message(f"Sorry, `{language}` is not a supported language code.", ephemeral=True)
+            return
+        try:
+            await self.db.set_user_preferences(user_id=interaction.user.id, user_locale=language)
+            await interaction.response.send_message(f"Your preferred language has been set to **{SUPPORTED_LANGUAGES[language]}** (`{language}`).", ephemeral=True)
+        except Exception:
+            await interaction.response.send_message("An error occurred while saving your preference.", ephemeral=True)
+
+    def _is_likely_english_slang(self, text: str) -> bool:
+        """
+        A heuristic pre-filter to catch exaggerated English or short, common phrases
+        before they hit the API. Returns True if the text is likely slang.
+        """
+        lower_text = text.lower().strip()
+        
+        # Whitelist of common short words that should NOT be considered slang.
+        common_short_words = {"a", "i", "an", "as", "at", "be", "by", "do", "go", "he", "if", "in", "is", "it", "me", "my", "no", "of", "on", "or", "so", "to", "up", "us", "we", "am", "are", "and", "but", "can", "did", "for", "get", "has", "had", "him", "her", "how", "let", "not", "out", "say", "see", "she", "the", "try", "use", "was", "way", "who", "why", "you", "all", "any", "boy", "car", "day", "eat", "fly", "guy", "hey", "his", "its", "leg", "man", "new", "one", "our", "run", "sit", "ten", "too", "two", "war", "yet"}
+
+        # Rule 1: Check for excessive character repetition (e.g., "heyyy", "soooo")
+        #if re.search(r'(.)\1{2,}', lower_text):
+        #    return True
+
+        # Rule 2: Check for very short, common chat slang.
+        if lower_text in ["ok", "lol", "ty", "thanks", "omg", "heh", "okey", "thx", "np", "gg", "gn", "gm"]:
+            return True
+
+        # Rule 3: Check for longer messages made of very few unique characters (catches 'hahahaha', 'lololol')
+        #unique_chars = set(lower_text.replace(" ", ""))
+        #if len(lower_text) > 5 and len(unique_chars) <= 3:
+        #    return True
+
+        # Rule 4: Check for single, short words that are NOT common English words (catches 'NOI', 'brb', etc.)
+        if " " not in lower_text and len(lower_text) <= 3 and lower_text not in common_short_words:
+            return True
+            
+        return False
+
+    @commands.Cog.listener()
+    async def on_message(self, message: discord.Message):
+        if message.author.bot or message.webhook_id or not message.guild or not isinstance(message.channel, discord.TextChannel) or not message.content:
+            return
+            
+        is_slang = self._is_likely_english_slang(message.content)
+        if is_slang:
+            log.info(f"Auto-translate skipped: Heuristic pre-filter identified message '{message.content}' as likely slang.")
+            return
+
+        # --- Fuzzy Matching for Auto-Correction Suggestions ---
+        glossary = await self.db.get_glossary_terms(message.guild.id)
+        if glossary:
+            best_match, score = process.extractOne(message.content.lower(), glossary, scorer=fuzz.ratio)
+            
+            SIMILARITY_THRESHOLD = 88
+            if score >= SIMILARITY_THRESHOLD and score < 100:
+                log.info(f"Found close glossary match for '{message.content}': '{best_match}' (Score: {score}). Skipping translation.")
+                return # Stop further processing
+
+        # --- Translation Rule Hierarchy ---
+        # 1. Check for a channel-specific rule
+        config = await self.db.get_auto_translate_config(message.channel.id)
+
+        # 2. If no channel rule, check for a server-wide rule
+        if not config:
+            # 2a. First, check if the channel is explicitly exempt
+            if await self.db.is_channel_exempt(message.channel.id):
+                return
+            
+            # 2b. If not exempt, get the server config to find the server-wide language
+            guild_config = await self.db.get_guild_config(message.guild.id)
+            server_lang = guild_config.get('server_wide_language') if guild_config else None
+            
+            if server_lang:
+                # Create a "virtual" config for the server-wide rule using the stored settings
+                config = {
+                    'target_language_code': server_lang,
+                    'impersonate': guild_config.get('sw_impersonate', False),
+                    'delete_original': guild_config.get('sw_delete_original', False)
+                }
+            else:
+                # No channel rule and no server rule, so we are done.
+                return
+        
+        target_lang = config['target_language_code']
+        
+        try:
+            detected_lang = self.detector.detect_language_of(message.content)
+            if detected_lang:
+                best_guess = detected_lang.name.lower().replace("_", "-")
+                if best_guess and best_guess.split('-')[0] == target_lang.split('-')[0]:
+                    return
+        except Exception as e:
+            log.warning(f"Lingua language detection failed: {e}")
+            pass
+
+        # --- Glossary Integration ---
+        # The glossary is already fetched from the fuzzy match step above.
+        
+        # We pass source_lang=None to force the API to do its own detection.
+        translation_result = await self.perform_translation(message.content, target_lang, glossary=glossary, source_lang=None)
+        if not translation_result: return
+
+        translated_text = translation_result.get('translated_text')
+        detected_language = translation_result.get('detected_language_code')
+        
+        # Final check: Don't post if translation failed or resulted in the same text
+        if not translated_text or not detected_language or detected_language == "error" or translated_text == message.content:
+            return
+        
+        # --- Post Translation and Delete Original if configured ---
+        if config.get('impersonate', False):
+            await self._send_webhook_as_reply(message, translated_text)
+        else:
+            await message.reply(content=translated_text, mention_author=False)
+
+        if config.get('delete_original', False):
+            try:
+                await message.delete()
+            except discord.Forbidden:
+                log.warning(f"Failed to delete original message {message.id} in #{message.channel.name}: Missing 'Manage Messages' permission.")
+            except discord.NotFound:
+                pass
+            except Exception as e:
+                log.error(f"An unexpected error occurred while deleting message {message.id}: {e}", exc_info=True)
+                
+    @commands.Cog.listener()
+    async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
+        if payload.user_id == self.bot.user.id or (payload.member and payload.member.bot):
+            return
+            
+        try:
+            channel = self.bot.get_channel(payload.channel_id)
+            if not isinstance(channel, (discord.TextChannel, discord.Thread)): return
+            message = await channel.fetch_message(payload.message_id)
+        except (discord.NotFound, discord.Forbidden):
+            return
+
+        # --- PIRATE SPEAK FEATURE ---
+        if str(payload.emoji) == '🏴‍☠️':
+            if message.content:
+                log.info(f"Pirate speak triggered by {payload.member.display_name if payload.member else 'Unknown User'}.")
+                pirate_text = self._translate_to_pirate_speak(message.content)
+                await message.reply(content=pirate_text, mention_author=False)
+            return
+            
+        target_language = self.emoji_to_language_map.get(str(payload.emoji))
+        if not target_language:
+            return
+            
+        if not message.content and not message.embeds:
+            return
+
+        # --- OFFLINE PRE-FILTER RESTORED AND IMPROVED ---
+        detected_lang_hint = None
+        if message.content:
+            try:
+                detected_lang = self.detector.detect_language_of(message.content)
+                if detected_lang:
+                    best_guess = detected_lang.name.lower().replace("_", "-")
+                    if best_guess and best_guess.split('-')[0] == target_language.split('-')[0]:
+                        log.info(f"Flag reaction skipped: Offline pre-filter detected '{best_guess}', matching target '{target_language}'. No API call made.")
+                        return
+                    detected_lang_hint = best_guess
+
+            except Exception as e:
+                log.warning(f"Lingua language detection failed for flag reaction: {e}")
+                pass
+        # --- END OF PRE-FILTER ---
+
+        log.info(f"Flag reaction translation triggered by {payload.member.display_name if payload.member else 'Unknown User'} for language '{target_language}'.")
+        async with channel.typing():
+            # --- Glossary Integration ---
+            glossary = await self.db.get_glossary_terms(payload.guild_id) if payload.guild_id else []
+
+            translated_text = ""
+            if message.content:
+                # Pass the detected_lang to the function
+                translation_result = await self.perform_translation(message.content, target_language, glossary=glossary, source_lang=detected_lang_hint)
+                if translation_result:
+                    translated_text = translation_result.get('translated_text', '')
+            translated_embeds = []
+            if message.embeds:
+                for embed in message.embeds:
+                    # Pass glossary to embed translation as well
+                    translated_embed = await HubManagerCog._translate_embed(self.translator, embed, target_language, glossary=glossary)
+                    translated_embeds.append(translated_embed)
+            if translated_text or translated_embeds:
+                await message.reply(content=translated_text or None, embeds=translated_embeds, mention_author=False)
+
+async def setup(bot: commands.Bot):
+    if not all(hasattr(bot, attr) for attr in ['db_manager', 'translator', 'usage_manager']):
+        log.critical("TranslationCog cannot be loaded: Core services not found on bot object.")
+        return
+    await bot.add_cog(TranslationCog(bot, bot.db_manager, bot.translator, bot.usage_manager))
+    log.info("TRANSLATION_COG: Cog loaded, context menu registered in __init__.")
 from core.utils import country_code_to_flag
 
 log = logging.getLogger(__name__)
