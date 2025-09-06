@@ -238,32 +238,29 @@ class TranslationCog(commands.Cog, name="Translation"):
         self.bot.tree.remove_command(self.translate_message_menu.name, type=self.translate_message_menu.type)
         self.bot.tree.remove_command(self.add_to_dictionary_menu.name, type=self.add_to_dictionary_menu.type)
 
-    async def perform_translation(self, original_message_content: str, target_lang: str, glossary: Optional[List[str]] = None, source_lang: Optional[str] = None):
+        async def perform_translation(self, original_message_content: str, target_lang: str, glossary: Optional[List[str]] = None, source_lang: Optional[str] = None):
         if not self.translator.is_initialized:
             return {"translated_text": "Translation service is currently unavailable.", "detected_language_code": "error"}
         
-        # --- FIXED: Added a pre-check to ignore messages that are full glossary terms ---
-        # Glossary terms are stored in lowercase, so we match against the lowercased, stripped message.
         if glossary and original_message_content.strip().lower() in glossary:
             log.info(f"Auto-translate skipped: Message content '{original_message_content}' is a protected glossary term. No API call made.")
-            # Return a result that mimics a translation of identical text.
-            # This ensures the `on_message` listener will correctly ignore it.
             return {"translated_text": original_message_content, "detected_language_code": source_lang or "glossary"}
 
         if self.usage.check_limit_exceeded(len(original_message_content)):
             return {"translated_text": "The monthly translation limit has been reached.", "detected_language_code": "error"}
 
-        # --- FINAL SANITIZATION ---
         lang_code_match = re.search(r'\b([a-z]{2}(?:-[A-Z]{2})?)\b', target_lang)
         sanitized_lang = lang_code_match.group(1) if lang_code_match else target_lang
-        # --- END SANITIZATION ---
 
-        # Pass the pre-detected source_lang to the core translator to avoid a redundant API call
         translation_result = await self.translator.translate_text(original_message_content, sanitized_lang, glossary=glossary, source_language=source_lang)
-        if translation_result and translation_result.get('translated_text') and translation_result.get("detected_language_code") != "error":
-            # Only record usage if an actual translation occurred (source != target)
-            if translation_result.get('translated_text') != original_message_content:
+        
+        # --- FIXED: Only record usage if a REAL translation occurred ---
+        if translation_result and translation_result.get("detected_language_code") != "error":
+            detected_lang = translation_result.get("detected_language_code")
+            # We only record usage if the detected language is different from the target language.
+            if detected_lang and detected_lang.split('-')[0] != sanitized_lang.split('-')[0]:
                 await self.usage.record_usage(len(original_message_content))
+        
         return translation_result
 
     async def translate_message_callback(self, interaction: discord.Interaction, message: discord.Message):
@@ -465,18 +462,23 @@ class TranslationCog(commands.Cog, name="Translation"):
             log.warning(f"Lingua language detection failed: {e}")
             pass
 
-        # --- Glossary Integration ---
+                # --- Glossary Integration ---
         # The glossary is already fetched from the fuzzy match step above.
         
         # We pass source_lang=None to force the API to do its own detection.
         translation_result = await self.perform_translation(message.content, target_lang, glossary=glossary, source_lang=None)
         if not translation_result: return
 
-        translated_text = translation_result.get('translated_text')
+        # --- FIXED: Final check now correctly handles the "source matches target" case ---
         detected_language = translation_result.get('detected_language_code')
-        
-        # Final check: Don't post if translation failed or resulted in the same text
-        if not translated_text or not detected_language or detected_language == "error" or translated_text == message.content:
+        translated_text = translation_result.get('translated_text')
+
+        # Condition 1: If the detected language matches the target, STOP.
+        if detected_language and detected_language.split('-')[0] == target_lang.split('-')[0]:
+            return
+            
+        # Condition 2: If there's an error or no text, STOP.
+        if not translated_text or detected_language == "error":
             return
         
         # --- Post Translation and Delete Original if configured ---
