@@ -243,7 +243,18 @@ class HubManagerCog(commands.Cog, name="Hub Manager"):
             else:
                 return f"@{member.display_name}"  # Replace with non-pinging name
 
-        return await mention_pattern.sub(replace_mention, content)
+        # We cannot use re.sub with an async replacement function directly.
+        # Instead, we find all matches and build the string manually.
+        last_end = 0
+        result_parts = []
+        for match in mention_pattern.finditer(content):
+            # Append the text between the last match and this one
+            result_parts.append(content[last_end:match.start()])
+            # Await the async replacement function and append its result
+            result_parts.append(await replace_mention(match))
+            last_end = match.end()
+        result_parts.append(content[last_end:]) # Append the remainder of the string
+        return "".join(result_parts)
 
     @staticmethod
     async def _translate_embed(translator: TextTranslator, embed: discord.Embed, target_lang: str, source_lang: Optional[str] = None, glossary: Optional[List[str]] = None) -> discord.Embed:
@@ -325,8 +336,8 @@ class HubManagerCog(commands.Cog, name="Hub Manager"):
             except Exception as e:
                 log.error(f"Error during hub archival for thread {thread_id}: {e}", exc_info=True)
 
-    async def _create_or_reactivate_hub(self, channel: discord.TextChannel, language: str, creator: discord.User | discord.Member, expiry_str: str = '1h') -> Optional[discord.Thread]:
-        """Core logic to create or reactivate a hub. Returns the thread if successful, otherwise None."""
+    async def _create_or_reactivate_hub(self, channel: discord.TextChannel, language: str, creator: discord.User | discord.Member, expiry_str: str = '1h') -> Optional[tuple[discord.Thread, bool]]:
+        """Core logic to create or reactivate a hub. Returns (thread, is_newly_created) if successful, otherwise None."""
         guild = channel.guild
 
         if language.lower().startswith('en'):
@@ -361,7 +372,7 @@ class HubManagerCog(commands.Cog, name="Hub Manager"):
             try:
                 thread = self.bot.get_channel(active_hub_record['thread_id']) or await self.bot.fetch_channel(active_hub_record['thread_id'])
                 log.info(f"Hub for {language} in {channel.id} already exists ({thread.id}). Returning existing thread.")
-                return thread
+                return thread, False # Not newly created
             except discord.NotFound:
                 log.warning(f"Found stale active hub record for a deleted thread ({active_hub_record['thread_id']}). Deleting record and proceeding.")
                 await self.db.delete_hub(active_hub_record['thread_id'])
@@ -383,7 +394,7 @@ class HubManagerCog(commands.Cog, name="Hub Manager"):
                     expiry_msg_part = f"will now expire at {discord.utils.format_dt(expires_at, style='F')}" if expires_at else "is now permanent"
                     reactivation_msg = f"This hub has been reactivated by {creator.mention} and {expiry_msg_part}."
                     await self._send_localized_hub_message(thread, language, reactivation_msg)
-                    return thread
+                    return thread, False # Not newly created
             except discord.NotFound:
                 log.warning(f"Found record for archived hub {archived_hub_record['thread_id']} but couldn't fetch it. Deleting record.")
                 await self.db.delete_hub(archived_hub_record['thread_id'])
@@ -428,7 +439,7 @@ class HubManagerCog(commands.Cog, name="Hub Manager"):
         welcome_template = f"🌍 Welcome {creator.mention} to the `{language}` translation hub for {channel.mention}!\n\n{expiry_msg_part}"
         await self._send_localized_hub_message(thread, language, welcome_template)
 
-        return thread
+        return thread, True # Is newly created
 
     async def create_hub_logic(self, interaction: discord.Interaction, language: str, channel: discord.TextChannel, expiry_str: str = '1h'):
         if not interaction.response.is_done():
@@ -445,20 +456,21 @@ class HubManagerCog(commands.Cog, name="Hub Manager"):
             await interaction.followup.send(f"Sorry, '{language}' is not a supported language code.", ephemeral=True)
             return
 
-        thread = await self._create_or_reactivate_hub(channel, language, interaction.user, expiry_str)
+        result = await self._create_or_reactivate_hub(channel, language, interaction.user, expiry_str)
 
-        if not thread:
+        if not result:
             await interaction.followup.send("An error occurred while trying to create or reactivate the hub. I might be missing permissions.", ephemeral=True)
             return
         
+        thread, is_newly_created = result
+
         view = discord.ui.View()
         view.add_item(discord.ui.Button(label="Go to Hub", style=discord.ButtonStyle.link, url=thread.jump_url))
         
         if interaction.guild:
             guild_config = await self.db.get_guild_config(interaction.guild_id)
             # Check if the hub was newly created (not just reactivated) to avoid duplicate log messages
-            hub_record = await self.db.get_hub_by_thread_id(thread.id)
-            if hub_record and (datetime.now(timezone.utc) - hub_record['created_at']) < timedelta(seconds=10):
+            if is_newly_created:
                 if guild_config and guild_config.get('admin_log_channel_id'):
                     log_channel = self.bot.get_channel(guild_config['admin_log_channel_id'])
                     if log_channel and isinstance(log_channel, discord.TextChannel):
@@ -541,9 +553,10 @@ class HubManagerCog(commands.Cog, name="Hub Manager"):
 
             log.info(f"User {user.id} with pref lang '{user_lang}' was mentioned. Checking for hub.")
             # Create a new hub for this user's language
-            new_thread = await self._create_or_reactivate_hub(message.channel, user_lang, creator=self.bot.user, expiry_str='1h')
+            result = await self._create_or_reactivate_hub(message.channel, user_lang, creator=self.bot.user, expiry_str='1h')
 
-            if new_thread:
+            if result:
+                new_thread, _ = result # We don't need the is_newly_created flag here
                 log.info(f"Auto-created hub {new_thread.id} for language '{user_lang}' due to mention.")
                 # Add the newly created hub to our list for processing
                 new_hub_record = await self.db.get_hub_by_thread_id(new_thread.id)
