@@ -241,7 +241,7 @@ class HubManagerCog(commands.Cog, name="Hub Manager"):
             elif not user_pref_lang and target_lang.split('-')[0] == main_lang.split('-')[0]:
                 return match.group(0) # Keep the ping
             else:
-                return f"@{member.display_name}"  # Replace with non-pinging name
+                return f"**@{member.display_name}**"  # Replace with bold, non-pinging name
 
         # We cannot use re.sub with an async replacement function directly.
         # Instead, we find all matches and build the string manually.
